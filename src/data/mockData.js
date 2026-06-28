@@ -90,4 +90,6 @@ export const ONBOARDING = [
   { emoji:"📱", headline:"See live ETA and how full the bus is — from anywhere", body:"Check before you even leave your room. No more guessing." },
   { emoji:"👥", headline:"At the stop? Let the system know you're waiting", body:"When enough of us tap in, the bus can be dispatched earlier — automatically." },
   { emoji:"⚡", headline:"You'll see it happen — and know you helped", body:"Bus E2 is coming 7 minutes earlier. You and 14 others made that happen.", italic:true },
+  { emoji:"✅", headline:"Got on the bus? Give ORBIT a quick update", body:"One quick tap keeps the queue accurate — and helps the students waiting behind you." },
+  { emoji:"🙋", headline:"Missed it? You're still part of the plan", body:"Tell ORBIT and you'll stay counted, so the next bus can respond when people are left waiting." },
 ];
