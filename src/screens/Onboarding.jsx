@@ -1,10 +1,18 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, SHADOW } from "../design/tokens";
 import { ONBOARDING } from "../data/mockData";
 
 export default function Onboarding({ onComplete }) {
   const [index,setIndex]=useState(0), touch=useRef(0), navigate=useNavigate(), card=ONBOARDING[index];
+  useEffect(()=>{
+    document.documentElement.classList.add("onboarding-active");
+    document.body.classList.add("onboarding-active");
+    return ()=>{
+      document.documentElement.classList.remove("onboarding-active");
+      document.body.classList.remove("onboarding-active");
+    };
+  },[]);
   const complete=()=>{localStorage.setItem("orbit_visited","true");onComplete?.();navigate("/");};
   const next=()=>index===ONBOARDING.length-1?complete():setIndex(index+1);
   return <main className="grid h-[100dvh] overflow-hidden grid-rows-[auto_minmax(0,1fr)_auto] px-6" style={{background:C.bg}} onTouchStart={e=>touch.current=e.touches[0].clientX} onTouchEnd={e=>{const d=e.changedTouches[0].clientX-touch.current;if(d<-45&&index<ONBOARDING.length-1)setIndex(index+1);if(d>45&&index>0)setIndex(index-1)}}>
