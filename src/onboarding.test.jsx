@@ -20,7 +20,8 @@ it.each(["Skip", "Get started →"])("leaves onboarding via %s", (buttonName) =>
 });
 
 it("explains boarded and missed-bus responses before completion", () => {
-  render(<MemoryRouter initialEntries={["/onboarding"]}><App /></MemoryRouter>);
+  const {container}=render(<MemoryRouter initialEntries={["/onboarding"]}><App /></MemoryRouter>);
+  expect(container.querySelector("main")).toHaveClass("h-[100dvh]","overflow-hidden");
   fireEvent.click(screen.getByRole("button",{name:"Go to card 5"}));
   expect(screen.getByText("Got on the bus? Give ORBIT a quick update")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button",{name:"Next →"}));
