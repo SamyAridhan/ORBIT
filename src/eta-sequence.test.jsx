@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { C } from "./design/tokens";
 import { CORRIDORS, DEMO_TIMING, STOPS } from "./data/mockData";
 import ETA from "./screens/ETA";
 
@@ -20,27 +21,27 @@ describe.each([1, 2, 3, 4, 5])("critical demo run %i", () => {
   it("executes the full deterministic sequence", () => {
     renderDemo();
     expect(screen.getAllByText("14").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("11 people waiting for Bus E at KDOJ").querySelectorAll("img")).toHaveLength(11);
+    expect(screen.getByLabelText("11 people waiting for Bus E at KDOJ").querySelectorAll("svg")).toHaveLength(11);
     expect(screen.getByText(/Bus coming sooner/).closest("section")).toHaveAttribute("aria-hidden", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "I'm waiting here" }));
     expect(screen.getByText("✓ You're counted — position 12 in queue")).toBeInTheDocument();
-    const atTwelve = screen.getByLabelText("12 people waiting for Bus E at KDOJ").querySelectorAll("img");
+    const atTwelve = screen.getByLabelText("12 people waiting for Bus E at KDOJ").querySelectorAll("svg");
     expect(atTwelve).toHaveLength(12);
     expect(atTwelve[11]).toHaveAttribute("width", "18");
-    expect(atTwelve[11].getAttribute("src")).toContain("userPerson");
+    expect(atTwelve[11].querySelector("circle")).toHaveAttribute("fill",C.userBlue);
 
     advance(DEMO_TIMING.extraPeopleDelay);
-    expect(screen.getByLabelText("13 people waiting for Bus E at KDOJ").querySelectorAll("img")).toHaveLength(13);
+    expect(screen.getByLabelText("13 people waiting for Bus E at KDOJ").querySelectorAll("svg")).toHaveLength(13);
     advance(DEMO_TIMING.extraPeopleStagger);
-    expect(screen.getByLabelText("14 people waiting for Bus E at KDOJ").querySelectorAll("img")).toHaveLength(14);
+    expect(screen.getByLabelText("14 people waiting for Bus E at KDOJ").querySelectorAll("svg")).toHaveLength(14);
     advance(DEMO_TIMING.extraPeopleStagger);
-    expect(screen.getByLabelText("15 people waiting for Bus E at KDOJ").querySelectorAll("img")).toHaveLength(15);
+    expect(screen.getByLabelText("15 people waiting for Bus E at KDOJ").querySelectorAll("svg")).toHaveLength(15);
     advance(DEMO_TIMING.extraPeopleStagger);
-    const atSixteen = screen.getByLabelText("16 people waiting for Bus E at KDOJ").querySelectorAll("img");
+    const atSixteen = screen.getByLabelText("16 people waiting for Bus E at KDOJ").querySelectorAll("svg");
     expect(atSixteen).toHaveLength(16);
-    expect(atSixteen[11].getAttribute("src")).toContain("userPerson");
-    expect(atSixteen[12].getAttribute("src")).toContain("otherPerson");
+    expect(atSixteen[11].querySelector("circle")).toHaveAttribute("fill",C.userBlue);
+    expect(atSixteen[12].querySelector("circle")).toHaveAttribute("fill",C.personBlack);
 
     advance(DEMO_TIMING.dispatchDelay-DEMO_TIMING.extraPeopleDelay-(3*DEMO_TIMING.extraPeopleStagger));
     expect(screen.getByText("Bus coming sooner", { exact: false }).closest("section")).toHaveAttribute("aria-hidden", "false");
