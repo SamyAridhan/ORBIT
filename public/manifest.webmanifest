@@ -1,0 +1,25 @@
+{
+  "name": "ORBIT · UTM Campus Bus",
+  "short_name": "ORBIT",
+  "description": "Student-facing campus bus coordination for UTM Malaysia.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F0F4FF",
+  "theme_color": "#1E3A8A",
+  "icons": [
+    {
+      "src": "/icons/orbit-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/orbit-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
