@@ -19,8 +19,15 @@ button, input { font: inherit; }
   transform-origin: center bottom;
 }
 
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .35; transform: scale(.72); }
+}
+
+.live-dot { animation: live-pulse 1.4s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
-  .person-enter { animation: none; }
+  .person-enter, .live-dot { animation: none; }
 }
 
 @media (max-width: 639px) {

@@ -60,6 +60,8 @@ describe.each([1, 2, 3, 4, 5])("critical demo run %i", () => {
 
 it("keeps demand signaling disabled outside the stop", () => {
   render(<MemoryRouter><ETA stop={STOPS[0]} atStop={false} corridor={Object.keys(CORRIDORS)[1]} /></MemoryRouter>);
+  expect(screen.getByText("LIVE")).toBeInTheDocument();
+  expect(screen.queryByText(/You're viewing live info/)).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "🔒 Available when you arrive at KDOJ" })).toBeDisabled();
   expect(screen.getByText("Your location confirms you're really waiting here.")).toBeInTheDocument();
 });
