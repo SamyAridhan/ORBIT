@@ -8,8 +8,11 @@ export function useDemoSequence(initialEta) {
   const startSequence=useCallback(()=>{debugLog("demo","Sequence started");setStarted(value=>value||true)},[]);
   useEffect(()=>{
     if(!started) return;
+    const arrivalTimers=Array.from({length:DEMO_TIMING.extraPeopleCount},(_,index)=>
+      setTimeout(()=>{const count=index+1;debugLog("demo","Person joined queue",{count});setExtraPeople(count)},DEMO_TIMING.extraPeopleDelay+(index*DEMO_TIMING.extraPeopleStagger))
+    );
     timers.current=[
-      setTimeout(()=>{debugLog("demo","Extra people joined",{count:DEMO_TIMING.extraPeopleCount});setExtraPeople(DEMO_TIMING.extraPeopleCount)},DEMO_TIMING.extraPeopleDelay),
+      ...arrivalTimers,
       setTimeout(()=>{debugLog("demo","Dispatch activated",{eta:DEMO_TIMING.dispatchEtaNew});setShowDispatch(true);setEta(DEMO_TIMING.dispatchEtaNew);},DEMO_TIMING.dispatchDelay),
       setTimeout(()=>{debugLog("demo","Dispatch banner hidden");setShowDispatch(false)},DEMO_TIMING.dispatchHideDelay),
       setTimeout(()=>{debugLog("demo","Boarding prompt shown");setShowBoarding(true)},DEMO_TIMING.boardingDelay),

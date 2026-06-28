@@ -6,3 +6,8 @@ dist/
 *.log
 
 .vercel
+coverage/
+.vite/
+*.local
+.DS_Store
+Thumbs.db

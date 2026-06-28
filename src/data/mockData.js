@@ -82,7 +82,7 @@ export const DEMO_BUS = {
 };
 
 export const INITIAL_WAITING = 11;
-export const DEMO_TIMING = { extraPeopleDelay:3000, extraPeopleCount:4, dispatchDelay:6000, dispatchEtaNew:7, dispatchHideDelay:11000, boardingDelay:16000 };
+export const DEMO_TIMING = { extraPeopleDelay:3000, extraPeopleStagger:650, extraPeopleCount:4, dispatchDelay:6000, dispatchEtaNew:7, dispatchHideDelay:11000, boardingDelay:16000 };
 export const GPS_DETECTION_DELAY = 1500;
 export const NEARBY_DISTANCE = 34;
 export const ONBOARDING = [
