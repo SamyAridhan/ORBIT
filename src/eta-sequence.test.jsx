@@ -22,7 +22,7 @@ describe.each([1, 2, 3, 4, 5])("critical demo run %i", () => {
     renderDemo();
     expect(screen.getAllByText("14").length).toBeGreaterThan(0);
     expect(screen.getByLabelText("11 people waiting for Bus E at KDOJ").querySelectorAll("svg")).toHaveLength(11);
-    expect(screen.getByText(/Bus coming sooner/).closest("section")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText(/Early departure approved/).closest("section")).toHaveAttribute("aria-hidden", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "I'm waiting here" }));
     expect(screen.getByText("✓ You're counted — position 12 in queue")).toBeInTheDocument();
@@ -44,15 +44,24 @@ describe.each([1, 2, 3, 4, 5])("critical demo run %i", () => {
     expect(atSixteen[12].querySelector("circle")).toHaveAttribute("fill",C.personBlack);
 
     advance(DEMO_TIMING.dispatchDelay-DEMO_TIMING.extraPeopleDelay-(3*DEMO_TIMING.extraPeopleStagger));
-    expect(screen.getByText("Bus coming sooner", { exact: false }).closest("section")).toHaveAttribute("aria-hidden", "false");
+    expect(screen.getByText("Early departure approved", { exact: false }).closest("section")).toHaveAttribute("aria-hidden", "false");
     expect(screen.getAllByText("7").length).toBeGreaterThan(0);
-    expect(screen.getByText(/You and 16 others/)).toBeInTheDocument();
+    expect(screen.getByText(/all 16 students/)).toBeInTheDocument();
 
     advance(DEMO_TIMING.dispatchHideDelay - DEMO_TIMING.dispatchDelay);
-    expect(screen.getByText("Bus coming sooner", { exact: false }).closest("section")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Early departure approved", { exact: false }).closest("section")).toHaveAttribute("aria-hidden", "true");
 
     advance(DEMO_TIMING.boardingDelay - DEMO_TIMING.dispatchHideDelay);
     expect(screen.getByText("Bus E2 just arrived at KDOJ")).toBeInTheDocument();
+    advance(DEMO_TIMING.boardingStagger);
+    expect(screen.getByLabelText("12 people waiting for Bus E at KDOJ")).toBeInTheDocument();
+    advance(DEMO_TIMING.boardingStagger);
+    expect(screen.getByLabelText("8 people waiting for Bus E at KDOJ")).toBeInTheDocument();
+    advance(DEMO_TIMING.boardingStagger);
+    expect(screen.getByLabelText("4 people waiting for Bus E at KDOJ")).toBeInTheDocument();
+    advance(DEMO_TIMING.boardingStagger);
+    expect(screen.getByLabelText("0 people waiting for Bus E at KDOJ")).toBeInTheDocument();
+    expect(screen.getByText("All 16 waiting students have boarded")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "✓ I'm on the bus" }));
     expect(screen.getByText("Safe trip! 👋")).toBeInTheDocument();
   });

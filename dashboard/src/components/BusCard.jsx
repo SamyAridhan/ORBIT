@@ -19,7 +19,7 @@ export default function BusCard({ bus, onOverride, focused = false, priorityStop
         <span className="flex items-center gap-1 text-xs font-bold" style={{ color: cfg.color }}>
           <span className="h-2 w-2 rounded-full" style={{ background: cfg.color }}/>{cfg.label}
         </span>
-        {bus.etaGain > 0 && <span className="ml-auto rounded-full px-2 py-1 text-xs font-bold" title="Compared with the original ETA" style={{ background: C.successLight, color: C.success }}>↑ {bus.etaGain} min vs original ETA</span>}
+        {bus.etaGain > 0 && <span className="ml-auto rounded-full px-2 py-1 text-xs font-bold" title="Compared with the original schedule" style={{ background: C.successLight, color: C.success }}>↑ {bus.etaGain} min vs schedule</span>}
       </div>
       <div className="mt-2 flex items-center gap-2 text-sm" style={{ color: C.textSec }}>
         <MapPin size={14}/><span className="truncate">{bus.position}</span>

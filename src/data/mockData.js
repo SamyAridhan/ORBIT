@@ -72,9 +72,9 @@ export function getBusInfo(corridor, userStopId) {
 }
 
 export const DEMO_BUS = {
-  id:"E2", corridor:"E", etaMinutes:14, load:14, max:28, lastSeen:"PKU",
+  id:"E2", corridor:"E", etaMinutes:14, load:0, max:28, lastSeen:"Corridor E terminus",
   routeToUser:[
-    { id:"kdse", name:"KDSE", waiting:8, isUserStop:false },
+    { id:"kdse", name:"KDSE", waiting:4, isUserStop:false },
     { id:"klg", name:"KLG", waiting:5, isUserStop:false },
     { id:"kdoj", name:"KDOJ", waiting:0, isUserStop:true },
   ],
@@ -82,7 +82,7 @@ export const DEMO_BUS = {
 };
 
 export const INITIAL_WAITING = 11;
-export const DEMO_TIMING = { extraPeopleDelay:3000, extraPeopleStagger:650, extraPeopleCount:4, dispatchDelay:6000, dispatchEtaNew:7, dispatchHideDelay:11000, boardingDelay:16000 };
+export const DEMO_TIMING = { extraPeopleDelay:3000, extraPeopleStagger:650, extraPeopleCount:4, dispatchDelay:6000, dispatchEtaNew:7, dispatchHideDelay:11000, boardingDelay:16000, boardingStagger:400, boardingBatch:4, boardingCount:16 };
 export const GPS_DETECTION_DELAY = 1500;
 export const NEARBY_DISTANCE = 34;
 export const ONBOARDING = [

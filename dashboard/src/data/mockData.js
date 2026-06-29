@@ -1,8 +1,8 @@
 import {C} from "../design/tokens";
 
 export const INIT_BUSES=[
-  {id:"E1",corridor:"E",status:"IDLE",position:"Terminus",load:0,max:28,eta:38,etaGain:0},
-  {id:"E2",corridor:"E",status:"COMMUTING",position:"PKU → KDSE",load:14,max:28,eta:14,etaGain:0},
+  {id:"E1",corridor:"E",status:"COMMUTING",position:"KDOJ → KLG",load:18,max:28,eta:31,etaGain:0},
+  {id:"E2",corridor:"E",status:"IDLE",position:"Corridor E terminus",load:0,max:28,eta:14,etaGain:0},
   {id:"B1",corridor:"B",status:"COMMUTING",position:"K9/10 → Cluster",load:22,max:28,eta:9,etaGain:0},
   {id:"B2",corridor:"B",status:"IDLE",position:"Terminus",load:0,max:28,eta:26,etaGain:0},
   {id:"B3",corridor:"B",status:"COMMUTING",position:"KP → K9/10",load:12,max:28,eta:17,etaGain:0},
@@ -22,12 +22,12 @@ export const STEPS=[
   {label:"Student joins KDOJ queue",busPatch:{},stopPatch:{kdoj_e:{queue:12}},logs:[log("SIGNAL","STOP_KDOJ_E","DEMAND_SIGNAL_ACCEPTED","Anonymous student signal accepted · Position 12 · Corridor E")]},
   {label:"Four more students join",busPatch:{},stopPatch:{kdoj_e:{queue:16,level:"HIGH"}},logs:[log("SIGNAL","STOP_KDOJ_E","QUEUE_UPDATED","16 students now waiting for Bus E · HIGH threshold reached")]},
   {label:"Stop Agent broadcasts HIGH demand",busPatch:{},stopPatch:{},logs:[log("BROADCAST","STOP_KDOJ_E","HIGH_DEMAND_BROADCAST","Queue 16 · Corridor E · Published to Bus E agents")]},
-  {label:"Bus E2 evaluates the signal",busPatch:{E2:{status:"RECALCULATING"}},stopPatch:{},logs:[log("EVAL","BUS_E2","INTERVENTION_EVALUATION","E2 is already commuting · KDOJ is upcoming · Running six-step hierarchy")]},
-  {label:"Safe arrival compression selected",busPatch:{},stopPatch:{},logs:[log("EVAL","BUS_E2","CONSTRAINTS_CHECKED","All guards pass · Arrival compression is the safest available intervention",["CORRIDOR ✓","CAPACITY ✓","PROTECTED TIME ✓","CLAIM FREE ✓","UPCOMING STOP ✓","NO OVERFLOW ✓"])]},
-  {label:"ETA improves from 14 to 7 minutes",busPatch:{E2:{status:"COMMUTING",position:"KDSE → KLG",eta:7,etaGain:7}},stopPatch:{},logs:[log("ACCEPT","BUS_E2","ARRIVAL_COMPRESSION_ACCEPTED","ETA improved 14 → 7 min · Intermediate dwell reduced safely")]},
-  {label:"KDOJ claimed by Bus E2",busPatch:{},stopPatch:{kdoj_e:{claimedBy:"E2"}},logs:[log("CLAIM","BUS_E2","CLAIM_PUBLISHED","tasks/kdoj/claim · KDOJ assigned to E2 for this response")]},
+  {label:"Idle Bus E2 evaluates the signal",busPatch:{E2:{status:"RECALCULATING"}},stopPatch:{},logs:[log("EVAL","BUS_E2","EARLY_DEPARTURE_EVALUATION","E2 is idle at the Corridor E terminus · Running the six-step hierarchy")]},
+  {label:"All early-departure constraints pass",busPatch:{},stopPatch:{},logs:[log("EVAL","BUS_E2","CONSTRAINTS_CHECKED","Early departure is safe and useful for the KDOJ queue",["CORRIDOR ✓","CAPACITY 0/28 ✓","PROTECTED TIME ✓","CLAIM FREE ✓","HEADWAY 22 MIN ✓","UTILITY 0.64 ✓"])]},
+  {label:"KDOJ claimed by Bus E2",busPatch:{},stopPatch:{kdoj_e:{claimedBy:"E2"}},logs:[log("CLAIM","BUS_E2","CLAIM_PUBLISHED","tasks/kdoj/claim · KDOJ assigned to E2 before dispatch")]},
+  {label:"E2 departs 7 minutes early",busPatch:{E2:{status:"COMMUTING",position:"Terminus → KDSE",eta:7,etaGain:7}},stopPatch:{},logs:[log("ACCEPT","BUS_E2","EARLY_DEPARTURE_ACCEPTED","E2 departed 7 minutes earlier · Original 14-minute arrival updated to 7 minutes")]},
   {label:"Bus E1 suppresses duplicate response",busPatch:{},stopPatch:{},logs:[log("SUPPRESSED","BUS_E1","DUPLICATE_RESPONSE_SUPPRESSED","KDOJ already claimed by E2 · No duplicate intervention issued")]},
-  {label:"E2 arrives and boarding prompt is sent",busPatch:{E2:{status:"BOARDING",position:"KDOJ",eta:0,etaGain:7}},stopPatch:{kdoj_e:{claimedBy:null,lastBus:0}},logs:[log("BOARD","BUS_E2","BOARDING_PROMPT_SENT","E2 entered KDOJ geofence · Prompt sent to 16 active queue sessions")]},
+  {label:"E2 boards all 16 students at KDOJ",busPatch:{E2:{status:"BOARDING",position:"KDOJ",load:25,eta:0,etaGain:7}},stopPatch:{kdoj_e:{queue:0,level:"LOW",claimedBy:null,lastBus:0}},logs:[log("BOARD","BUS_E2","BOARDING_COMPLETED","E2 boarded 4 at KDSE, 5 at KLG, and all 16 at KDOJ · Load 25/28 · Queue cleared · Claim released")]},
 ];
 export const STATUS_CFG={IDLE:{color:C.textMuted,label:"IDLE"},COMMUTING:{color:C.primary,label:"COMMUTING"},BOARDING:{color:C.success,label:"BOARDING"},RECALCULATING:{color:C.accent,label:"EVALUATING"}};
 export const DEMAND_CFG={LOW:{color:C.textMuted,bg:"#F8FAFC",text:C.textSec},MEDIUM:{color:C.accent,bg:C.accentLight,text:"#92400E"},HIGH:{color:C.orange,bg:C.orangeLight,text:"#9A3412"},CRITICAL:{color:C.red,bg:C.redLight,text:"#991B1B"}};

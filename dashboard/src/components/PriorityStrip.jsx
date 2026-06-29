@@ -2,7 +2,7 @@ import { AlertTriangle, Bus, Users } from "lucide-react";
 import { C } from "../design/tokens";
 
 export default function PriorityStrip({ step, stop }) {
-  const assigned = step >= 7 && step <= 8;
+  const assigned = step >= 6 && step <= 8;
   const arrived = step === 9;
   const high = stop.level === "HIGH";
 
@@ -18,7 +18,7 @@ export default function PriorityStrip({ step, stop }) {
       <span className="font-bold" style={{color:C.text}}>KDOJ</span>
       {!arrived&&<span style={{color:C.textSec}}>{stop.queue} students waiting</span>}
       {assigned&&<span className="ml-auto rounded-full bg-white px-2.5 py-1 text-xs font-extrabold" style={{color:C.purple}}>Response assigned to E2</span>}
-      {arrived&&<span style={{color:C.textSec}}>Boarding prompt sent to 16 students</span>}
+      {arrived&&<span style={{color:C.textSec}}>All 16 students boarded · Queue cleared</span>}
     </section>
   );
 }
