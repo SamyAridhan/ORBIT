@@ -6,14 +6,14 @@ export default function TopBar({ title, sub, onBack, badge, action }) {
   const showLogo = !onBack && title === "ORBIT";
 
   return (
-    <header className="flex min-h-[76px] items-center gap-3 px-4 pb-3 pt-[calc(12px+env(safe-area-inset-top))] text-white" style={{ background: C.primary }}>
+    <header className="flex min-h-[86px] items-center gap-3 px-4 pb-4 pt-[calc(14px+env(safe-area-inset-top))] text-white" style={{ background: C.primary }}>
       {onBack && (
         <button aria-label="Back" onClick={onBack} className="rounded-lg p-2" style={{ background: "rgba(255,255,255,.14)" }}>
           <ArrowLeft size={18} />
         </button>
       )}
       {showLogo && (
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white p-1.5 shadow-sm">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white p-0.5 shadow-sm">
           <img src={orbitLogo} alt="" className="h-full w-full object-contain" />
         </span>
       )}
