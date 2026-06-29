@@ -2,16 +2,38 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run ORBIT",
+      "name": "Run ORBIT Student PWA",
       "type": "node-terminal",
       "request": "launch",
-      "command": "npm run dev",
+      "command": "npm run dev -- --port 5173",
       "cwd": "${workspaceFolder}",
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",
         "uriFormat": "%s",
         "action": "debugWithChrome"
       }
+    },
+    {
+      "name": "Run ORBIT Fleet Dashboard",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev -- --port 5174",
+      "cwd": "${workspaceFolder}/dashboard",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Run ORBIT Both",
+      "configurations": [
+        "Run ORBIT Student PWA",
+        "Run ORBIT Fleet Dashboard"
+      ],
+      "stopAll": true
     }
   ]
 }
