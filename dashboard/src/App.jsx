@@ -30,11 +30,11 @@ export default function App() {
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(300px,.9fr)_minmax(330px,1fr)_minmax(460px,1.35fr)]">
         <section className="overflow-y-auto border-r p-4" style={{ background: C.card, borderColor: C.border }}>
           <h2 className="mb-3 text-xs font-extrabold tracking-[.16em]" style={{ color: C.textMuted }}>BUSES · 6 TOTAL</h2>
-          <div className="space-y-4">{groups.map(group => <div key={group.corridor}><h3 className="mb-2 text-sm font-extrabold" style={{ color: C.primary }}>Bus {group.corridor} route</h3><div className="space-y-2">{group.buses.map(bus => {const focused=(dashboard.step<=2&&bus.id==="E1")||(dashboard.step>=4&&bus.id==="E2");const priorityStop=focused?(bus.id==="E1"&&dashboard.step===0?"KDOJ":"KDSE"):null;return <BusCard key={bus.id} bus={bus} focused={focused} priorityStop={priorityStop} onOverride={setModalBus}/>})}</div></div>)}</div>
+          <div className="space-y-4">{groups.map(group => <div key={group.corridor}><h3 className="mb-2 text-sm font-extrabold" style={{ color: C.primary }}>Bus {group.corridor} route</h3><div className="space-y-2">{group.buses.map(bus => <BusCard key={bus.id} bus={bus} onOverride={setModalBus}/>)}</div></div>)}</div>
         </section>
         <section className="overflow-y-auto border-r p-4" style={{ borderColor: C.border }}>
           <h2 className="mb-3 text-xs font-extrabold tracking-[.16em]" style={{ color: C.textMuted }}>BUS STOPS · 6 WATCHED</h2>
-          <div className="space-y-2">{dashboard.stops.map(stop => {const focused=(dashboard.step<=1||dashboard.step===8)?stop.id==="kdoj_e":stop.id==="kdse_e";return <StopCard key={stop.id} stop={stop} focused={focused}/>})}</div>
+          <div className="space-y-2">{dashboard.stops.map(stop => <StopCard key={stop.id} stop={stop}/>)}</div>
         </section>
         <section className="overflow-y-auto bg-white p-4 pb-28">
           <div className="mb-2 flex items-center"><h2 className="text-xs font-extrabold tracking-[.16em]" style={{ color: C.textMuted }}>WHAT THE SYSTEM DECIDED</h2>{dashboard.logs.length > 0 && <span className="ml-auto text-sm font-extrabold" style={{ color: C.primary }}>{dashboard.logs.length} updates</span>}</div>

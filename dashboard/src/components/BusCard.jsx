@@ -3,15 +3,14 @@ import { C, capacityColor } from "../design/tokens";
 import { STATUS_CFG } from "../data/mockData";
 import CapBar from "./CapBar";
 
-export default function BusCard({ bus, onOverride, focused = false, priorityStop = null }) {
+export default function BusCard({ bus, onOverride }) {
   const cfg = STATUS_CFG[bus.status];
-  const border = bus.status === "RECALCULATING" ? C.accent : focused ? C.primaryLight : C.border;
+  const border = ["RECALCULATING","VERIFYING"].includes(bus.status) ? C.accent : bus.status === "READY" ? C.success : bus.status === "PASSING_FULL" ? C.red : C.border;
 
   return (
     <article
       aria-label={`Bus ${bus.id}`}
-      aria-current={focused ? "step" : undefined}
-      className={`rounded-xl border-2 transition-all ${focused ? "p-3 shadow-sm" : "p-2.5 opacity-80"}`}
+      className="rounded-xl border-2 p-2.5 transition-all duration-500"
       style={{ background: C.card, borderColor: border }}
     >
       <div className="flex items-center gap-2">
@@ -23,9 +22,8 @@ export default function BusCard({ bus, onOverride, focused = false, priorityStop
       </div>
       <div className="mt-2 flex items-center gap-2 text-sm" style={{ color: C.textSec }}>
         <MapPin size={14}/><span key={bus.position} className="state-change truncate">{bus.position}</span>
-        <span key={bus.eta} className="state-change ml-auto flex items-center gap-1 font-bold" style={{ color: C.primary }}><TimerReset size={14}/>{bus.eta === 0 ? "Arrived" : `${bus.eta} min`}</span>
+        <span key={`${bus.status}-${bus.eta}`} className="state-change ml-auto flex items-center gap-1 font-bold" style={{ color: C.primary }}><TimerReset size={14}/>{bus.status==="IDLE"?`Leaves in ${bus.eta} min`:bus.eta===0?"At stop":`${bus.eta} min away`}</span>
       </div>
-      {priorityStop && <div className="mt-2 rounded-md px-2 py-1 text-xs font-extrabold" style={{background:C.primaryDim,color:C.primary}}>Heading to busy stop · {priorityStop}</div>}
       <div className="mt-2 flex items-center gap-2">
         <Gauge size={14} color={capacityColor(bus.load,bus.max)}/>
         <CapBar load={bus.load} max={bus.max}/>
