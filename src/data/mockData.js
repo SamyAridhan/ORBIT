@@ -72,7 +72,7 @@ export function getBusInfo(corridor, userStopId) {
 }
 
 export const DEMO_BUS = {
-  id:"E2", corridor:"E", etaMinutes:14, load:0, max:28, lastSeen:"Corridor E terminus",
+  id:"E2", corridor:"E", etaMinutes:14, load:0, max:28, lastSeen:"Bus E terminus",
   routeToUser:[
     { id:"kdse", name:"KDSE", waiting:4, isUserStop:false },
     { id:"klg", name:"KLG", waiting:5, isUserStop:false },
@@ -86,10 +86,10 @@ export const DEMO_TIMING = { extraPeopleDelay:3000, extraPeopleStagger:650, extr
 export const GPS_DETECTION_DELAY = 1500;
 export const NEARBY_DISTANCE = 34;
 export const ONBOARDING = [
-  { emoji:"🚌", headline:"Waiting for the bus with no idea when it comes?", body:"Every UTM student knows this feeling. ORBIT fixes it." },
-  { emoji:"📱", headline:"See live ETA and how full the bus is — from anywhere", body:"Check before you even leave your room. No more guessing." },
-  { emoji:"👥", headline:"At the stop? Let the system know you're waiting", body:"When enough of us tap in, the bus can be dispatched earlier — automatically." },
-  { emoji:"⚡", headline:"You'll see it happen — and know you helped", body:"Bus E2 is coming 7 minutes earlier. You and 14 others made that happen.", italic:true },
-  { emoji:"✅", headline:"Got on the bus? Give ORBIT a quick update", body:"One quick tap keeps the queue accurate — and helps the students waiting behind you." },
-  { emoji:"🙋", headline:"Missed it? You're still part of the plan", body:"Tell ORBIT and you'll stay counted, so the next bus can respond when people are left waiting." },
+  { emoji:"🚌", headline:"Know when your bus is coming", body:"See the latest arrival time instead of waiting and guessing." },
+  { emoji:"📱", headline:"Check the bus before you leave", body:"See how many seats are left and where the bus is now." },
+  { emoji:"👥", headline:"At the stop? Join the live queue", body:"Tap once to tell ORBIT that you are waiting for the bus." },
+  { emoji:"⚡", headline:"More people waiting can bring help sooner", body:"If it is safe, ORBIT can send a bus out earlier.", italic:true },
+  { emoji:"✅", headline:"Tell us when you get on", body:"Your quick reply keeps the queue correct for everyone." },
+  { emoji:"🙋", headline:"Missed the bus? You can stay in the queue", body:"Tell ORBIT you missed it so the next bus knows you are still waiting." },
 ];
