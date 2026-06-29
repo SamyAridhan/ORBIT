@@ -13,10 +13,10 @@ export default function StopCard({stop,focused=false}) {
       {stop.claimedBy&&<span className="ml-auto flex items-center gap-1 text-xs font-bold" style={{color:C.purple}}><LockKeyhole size={15}/>Bus {stop.claimedBy} assigned</span>}
     </div>
     <div className="mt-2 flex items-baseline gap-2">
-      <strong className="text-4xl font-black leading-none" style={{color:stop.level==="HIGH"?C.orange:stop.level==="CRITICAL"?C.red:C.text}}>{stop.queue}</strong>
+      <strong key={stop.queue} className="state-change text-4xl font-black leading-none" style={{color:stop.level==="HIGH"?C.orange:stop.level==="CRITICAL"?C.red:C.text}}>{stop.queue}</strong>
       <p className="text-sm font-semibold" style={{color:C.textSec}}>people waiting</p>
     </div>
-    <span className="mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-extrabold" style={{background:cfg.bg,color:cfg.text}}><span className={`h-2 w-2 rounded-full ${stop.level==="CRITICAL"?"critical-pulse":""}`} style={{background:cfg.color}}/>{cfg.label}</span>
+    <span key={stop.level} className="state-change mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-extrabold" style={{background:cfg.bg,color:cfg.text}}><span className={`h-2 w-2 rounded-full ${stop.level==="CRITICAL"?"critical-pulse":""}`} style={{background:cfg.color}}/>{cfg.label}</span>
     <p className="mt-2 text-xs" style={{color:C.textMuted}}>{stop.lastBus===0?"A bus is here now":`Last bus was ${stop.lastBus} min ago`}</p>
   </article>;
 }

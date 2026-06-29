@@ -30,7 +30,7 @@ export default function DemoControl({ step, totalSteps, label, onPrev, onNext })
         <span className="shrink-0 text-[9px] font-semibold tabular-nums text-slate-400">
           {step}/{totalSteps - 1}
         </span>
-        <span className="truncate text-[10px] font-medium text-slate-500">
+        <span key={label} className="state-change truncate text-[10px] font-medium text-slate-500">
           {label}
         </span>
       </div>

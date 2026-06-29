@@ -72,16 +72,16 @@ export function getBusInfo(corridor, userStopId) {
 }
 
 export const DEMO_BUS = {
-  id:"E1", corridor:"E", etaMinutes:7, load:28, max:28, lastSeen:"Left KDOJ at 7:40",
+  id:"E1", corridor:"E", etaMinutes:7, load:28, max:28, lastSeen:"Left KDOJ at 7:30",
   routeToUser:[
     { id:"kdoj", name:"KDOJ", waiting:20, isUserStop:false },
     { id:"kdse", name:"KDSE", waiting:0, isUserStop:true },
   ],
-  followingBus:{ id:"E2", etaMinutes:27, status:"Scheduled to leave KDOJ at 8:00" },
+  followingBus:{ id:"E2", etaMinutes:27, status:"Scheduled to leave KDOJ at 7:50" },
 };
 
 export const RELIEF_BUS = {
-  id:"E2", corridor:"E", etaMinutes:27, load:0, max:28, lastSeen:"Waiting at KDOJ for 8:00",
+  id:"E2", corridor:"E", etaMinutes:27, load:0, max:28, lastSeen:"Waiting at KDOJ for 7:50",
   routeToUser:[
     { id:"kdoj", name:"KDOJ", waiting:2, isUserStop:false },
     { id:"kdse", name:"KDSE", waiting:0, isUserStop:true },
