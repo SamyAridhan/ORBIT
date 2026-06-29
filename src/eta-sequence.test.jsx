@@ -16,6 +16,11 @@ const renderDemo = () => {
   render(<MemoryRouter><ETA stop={STOPS.find(stop => stop.id === "kdse")} atStop corridor="E" /></MemoryRouter>);
 };
 
+const renderNormalBusD = () => {
+  vi.useFakeTimers();
+  render(<MemoryRouter><ETA stop={STOPS.find(stop => stop.id === "kdse")} atStop corridor="D" /></MemoryRouter>);
+};
+
 const advance = milliseconds => act(() => vi.advanceTimersByTime(milliseconds));
 
 describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
@@ -33,7 +38,7 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
     expect(queue[17].querySelector("circle")).toHaveAttribute("fill", C.userBlue);
 
     advance(DEMO_TIMING.firstBusDelay);
-    expect(screen.getByText("Bus E1 reached KDSE full")).toBeInTheDocument();
+    expect(screen.getByText("Bus E1 just arrived at KDSE")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Yes, I got on" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "No, I missed it" }));
     expect(screen.getByText("✓ Don’t worry, you’re still in the queue")).toBeInTheDocument();
@@ -67,4 +72,15 @@ it("keeps queue joining disabled outside the stop", () => {
   expect(screen.getByText("LIVE")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Go to KDOJ to join the queue/ })).toBeDisabled();
   expect(screen.getByText("You need to be at the stop before you can join its live queue.")).toBeInTheDocument();
+});
+
+it("uses the normal boarded prompt for Bus D at KDSE", () => {
+  renderNormalBusD();
+  expect(screen.getAllByText("Bus D2").length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole("button", { name: "I'm waiting for this bus" }));
+  advance(DEMO_TIMING.firstBusDelay);
+  expect(screen.getByText("Bus D2 just arrived at KDSE")).toBeInTheDocument();
+  expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "true");
+  fireEvent.click(screen.getByRole("button", { name: /Yes, I’m on/ }));
+  expect(screen.getByText("Nice, you’re all set. Have a safe trip.")).toBeInTheDocument();
 });

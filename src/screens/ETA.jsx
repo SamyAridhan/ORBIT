@@ -16,8 +16,10 @@ export default function ETA({ stop, atStop, corridor }) {
   const [userTapped, setUserTapped] = useState(false);
   const navigate = useNavigate();
   const bus = getBusInfo(corridor, stop.id);
-  const { eta, showFullBus, missedReported, showDispatch, showBoarding, boardedCount, startSequence, reportMissed } = useDemoSequence(bus.etaMinutes, RELIEF_BUS.etaMinutes);
+  const scenario = corridor === "E" && stop.id === "kdse" ? "overflow" : "normal";
+  const { eta, showArrivalPrompt, missedReported, showDispatch, showBoarding, boardedCount, startSequence, reportMissed, reportBoarded } = useDemoSequence(bus.etaMinutes, RELIEF_BUS.etaMinutes, scenario);
   const activeBus = missedReported ? RELIEF_BUS : bus;
+  const boardingBus = missedReported ? RELIEF_BUS : bus;
   const total = INITIAL_WAITING + (userTapped ? 1 : 0);
   const remaining = Math.max(0, total - boardedCount);
   const intermediateLoad = activeBus.routeToUser.filter(item => !item.isUserStop).reduce((sum, item) => sum + item.waiting, 0);
@@ -37,9 +39,9 @@ export default function ETA({ stop, atStop, corridor }) {
     <main className="min-h-full" style={{ background: C.bg }}>
       <TopBar title={stop.name} sub={CORRIDORS[corridor]?.label} badge={atStop} onBack={() => navigate("/destination")} />
       <div className="space-y-3 p-3">
-        <FullBusPrompt show={showFullBus} onMissed={reportMissed} />
+        <FullBusPrompt show={showArrivalPrompt} bus={bus} stop={stop} onBoarded={reportBoarded} onMissed={reportMissed} />
         <DispatchBanner show={showDispatch} busId={RELIEF_BUS.id} departureStop="KDOJ" newEta={DEMO_TIMING.dispatchEtaNew} oldEta={RELIEF_BUS.etaMinutes} totalWaiting={total} />
-        <BoardingPrompt show={showBoarding} bus={RELIEF_BUS} stop={stop} />
+        <BoardingPrompt show={showBoarding} bus={boardingBus} stop={stop} />
 
         <section className="rounded-2xl border p-3" style={{ background: C.card, borderColor: C.border }}>
           <div className="flex items-center justify-between gap-3">
@@ -68,7 +70,7 @@ export default function ETA({ stop, atStop, corridor }) {
         {userTapped ? (
           <div className="rounded-xl p-4" style={{ background: C.successLight, color: C.success }}>
             <strong className="text-sm">✓ {missedReported ? "Don’t worry, you’re still in the queue" : "You’re in the live queue"}</strong>
-            <p className="mt-1 text-[11px]">{missedReported ? "ORBIT is checking the next best Bus E option for you." : `We’ll tell you when Bus ${bus.id} is close.`}</p>
+            <p className="mt-1 text-[11px]">{missedReported ? `ORBIT is checking the next best Bus ${corridor} option for you.` : `We’ll tell you when Bus ${bus.id} is close.`}</p>
           </div>
         ) : (
           <>
