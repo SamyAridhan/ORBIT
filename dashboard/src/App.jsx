@@ -3,7 +3,6 @@ import { C } from "./design/tokens";
 import { LOG_CFG, SCENARIO_TIMES } from "./data/mockData";
 import { useDashboard } from "./hooks/useDashboard";
 import Header from "./components/Header";
-import PriorityStrip from "./components/PriorityStrip";
 import BusCard from "./components/BusCard";
 import StopCard from "./components/StopCard";
 import LogEntry from "./components/LogEntry";
@@ -23,17 +22,11 @@ export default function App() {
   const groups = useMemo(() => ["E", "B", "F"].map(corridor => ({corridor, buses: dashboard.buses.filter(bus => bus.corridor === corridor)})), [dashboard.buses]);
   const active = dashboard.buses.filter(bus => bus.status !== "IDLE").length;
   const high = dashboard.stops.filter(stop => ["HIGH", "CRITICAL"].includes(stop.level)).length;
-  const kdojStop = dashboard.stops.find(stop => stop.id === "kdoj_e");
-  const kdseStop = dashboard.stops.find(stop => stop.id === "kdse_e");
-  const targetStop = dashboard.step === 0 ? kdojStop : kdseStop;
-  const overflowStops = [kdojStop, kdseStop];
-  const overflowTotal = overflowStops.reduce((total, stop) => total + stop.queue, 0);
   const confirm = () => { dashboard.applyOverride(modalBus.id); setModalBus(null); };
 
   return (
     <div className="flex h-screen min-w-[1100px] flex-col overflow-hidden" style={{ background: C.bg }}>
       <Header active={active} high={high} decisions={dashboard.logs.length} time={SCENARIO_TIMES[dashboard.step]}/>
-      <PriorityStrip key={`priority-${dashboard.step}`} step={dashboard.step} stop={targetStop} overflowTotal={overflowTotal} overflowStopCount={overflowStops.filter(stop => stop.queue > 0).length}/>
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(300px,.9fr)_minmax(330px,1fr)_minmax(460px,1.35fr)]">
         <section className="overflow-y-auto border-r p-4" style={{ background: C.card, borderColor: C.border }}>
           <h2 className="mb-3 text-xs font-extrabold tracking-[.16em]" style={{ color: C.textMuted }}>BUSES · 6 TOTAL</h2>
