@@ -1,4 +1,43 @@
-import {ChevronLeft,ChevronRight,Minimize2,Zap} from "lucide-react";
-import {useEffect,useState} from "react";
-import {C} from "../design/tokens";
-export default function DemoControl({step,totalSteps,label,onPrev,onNext}){const [open,setOpen]=useState(true);useEffect(()=>{const key=event=>{if(event.key==="ArrowLeft")onPrev();if(event.key==="ArrowRight")onNext()};window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key)},[onPrev,onNext]);if(!open)return <button aria-label="Open demo controls" onClick={()=>setOpen(true)} className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full text-white shadow-2xl" style={{background:C.primary}}><Zap/></button>;return <div className="fixed bottom-5 right-5 z-40 flex w-[520px] items-center gap-3 rounded-2xl p-3 text-white shadow-2xl" style={{background:C.primary}}><button aria-label="Previous step" disabled={step===0} onClick={onPrev} className="rounded-xl bg-white/10 p-3 disabled:opacity-25"><ChevronLeft/></button><div className="min-w-0 flex-1 text-center"><p className="text-[10px] font-bold tracking-widest text-white/50">STEP {step} / {totalSteps-1}</p><p className="truncate text-sm font-bold">{label}</p></div><button aria-label="Next step" disabled={step===totalSteps-1} onClick={onNext} className="rounded-xl p-3 disabled:bg-white/10 disabled:opacity-25" style={{background:step===totalSteps-1?undefined:C.success}}><ChevronRight/></button><button aria-label="Collapse demo controls" onClick={()=>setOpen(false)} className="p-2 text-white/50"><Minimize2 size={18}/></button></div>}
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect } from "react";
+import { C } from "../design/tokens";
+
+export default function DemoControl({ step, totalSteps, label, onPrev, onNext }) {
+  useEffect(() => {
+    const handleKey = (event) => {
+      if (event.key === "ArrowLeft") onPrev();
+      if (event.key === "ArrowRight") onNext();
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onPrev, onNext]);
+
+  return (
+    <div
+      className="fixed bottom-2 right-2 z-40 flex items-center gap-0.5 rounded-md border bg-white/90 p-0.5 shadow-sm backdrop-blur"
+      style={{ borderColor: C.border }}
+    >
+      <span className="sr-only">{label}</span>
+      <button
+        aria-label="Previous step"
+        disabled={step === 0}
+        onClick={onPrev}
+        className="flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-slate-100 disabled:opacity-20"
+      >
+        <ChevronLeft size={13} strokeWidth={2} />
+      </button>
+      <span className="min-w-7 text-center text-[9px] font-semibold tabular-nums text-slate-400">
+        {step}/{totalSteps - 1}
+      </span>
+      <button
+        aria-label="Next step"
+        disabled={step === totalSteps - 1}
+        onClick={onNext}
+        className="flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-slate-100 disabled:opacity-20"
+      >
+        <ChevronRight size={13} strokeWidth={2} />
+      </button>
+    </div>
+  );
+}
