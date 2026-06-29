@@ -17,13 +17,13 @@ export default function ETA({ stop, atStop, corridor }) {
   const navigate = useNavigate();
   const bus = getBusInfo(corridor, stop.id);
   const scenario = corridor === "E" && stop.id === "kdse" ? "overflow" : "normal";
-  const { eta, showArrivalPrompt, missedReported, showDispatch, showBoarding, boardedCount, startSequence, reportMissed, reportBoarded } = useDemoSequence(bus.etaMinutes, RELIEF_BUS.etaMinutes, scenario);
+  const { eta, locationOverride, loadDelta, queueAdds, showArrivalPrompt, missedReported, showDispatch, showBoarding, boardedCount, startSequence, reportMissed, reportBoarded } = useDemoSequence(bus.etaMinutes, RELIEF_BUS.etaMinutes, scenario);
   const activeBus = missedReported ? RELIEF_BUS : bus;
   const boardingBus = missedReported ? RELIEF_BUS : bus;
-  const total = INITIAL_WAITING + (userTapped ? 1 : 0);
+  const total = INITIAL_WAITING + (userTapped ? 1 : 0) + queueAdds;
   const remaining = Math.max(0, total - boardedCount);
-  const intermediateLoad = activeBus.routeToUser.filter(item => !item.isUserStop).reduce((sum, item) => sum + item.waiting, 0);
-  const liveLoad = Math.min(activeBus.max, activeBus.load + intermediateLoad + boardedCount);
+  const currentLoad = Math.min(activeBus.max, activeBus.load + loadDelta);
+  const liveLoad = Math.min(activeBus.max, currentLoad + boardedCount);
 
   const tap = () => {
     if (!atStop || userTapped) {
@@ -54,7 +54,7 @@ export default function ETA({ stop, atStop, corridor }) {
               </div>
               <h2 className="text-lg font-extrabold leading-tight" style={{ color: C.text }}>Bus {activeBus.id}</h2>
               <p className="mt-0.5 text-[10px]" style={{ color: C.textSec }}>
-                {showBoarding ? `Boarding now at ${stop.name}` : missedReported ? "Waiting at KDOJ for its updated departure" : activeBus.lastSeen}
+                {showBoarding ? `Boarding now at ${stop.name}` : locationOverride || activeBus.lastSeen}
               </p>
             </div>
             <div className="shrink-0 text-right">
@@ -62,10 +62,10 @@ export default function ETA({ stop, atStop, corridor }) {
               <span className="ml-1 text-xs font-bold" style={{ color: C.textSec }}>min</span>
             </div>
           </div>
-          <div className="mt-2.5"><CapacityBar load={showBoarding ? liveLoad : activeBus.load} max={activeBus.max} /></div>
+          <div className="mt-2.5"><CapacityBar load={showBoarding ? liveLoad : currentLoad} max={activeBus.max} /></div>
         </section>
 
-        <PeopleQueue beforeUser={INITIAL_WAITING} afterUser={0} userTapped={userTapped} corridor={corridor} stopName={stop.name} boardedCount={boardedCount} />
+        <PeopleQueue beforeUser={INITIAL_WAITING} afterUser={queueAdds} userTapped={userTapped} corridor={corridor} stopName={stop.name} boardedCount={boardedCount} />
 
         {userTapped ? (
           <div className="rounded-xl p-4" style={{ background: C.successLight, color: C.success }}>

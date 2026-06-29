@@ -20,7 +20,9 @@ export default function PeopleQueue({ beforeUser, afterUser, userTapped, corrido
             size={size}
             color={kind === "user" ? C.userBlue : C.personBlack}
             className="person-enter"
-            style={{ animationDelay: boardedCount > 0 ? "0ms" : i < beforeUser ? `${i * 45}ms` : "0ms" }}
+            style={{
+              animationDelay: boardedCount > 0 ? "0ms" : i < beforeUser ? `${i * 45}ms` : kind === "other" && i > beforeUser ? `${(i - beforeUser) * 70}ms` : "0ms",
+            }}
           />
         ))}
       </div>

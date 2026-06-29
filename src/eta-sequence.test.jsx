@@ -3,7 +3,7 @@ import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { C } from "./design/tokens";
-import { CORRIDORS, DEMO_TIMING, STOPS } from "./data/mockData";
+import { CORRIDORS, DEMO_TIMING, INITIAL_WAITING, STOPS } from "./data/mockData";
 import ETA from "./screens/ETA";
 
 afterEach(() => {
@@ -11,33 +11,39 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const renderDemo = () => {
+const renderEta = corridor => {
   vi.useFakeTimers();
-  render(<MemoryRouter><ETA stop={STOPS.find(stop => stop.id === "kdse")} atStop corridor="E" /></MemoryRouter>);
-};
-
-const renderNormalBusD = () => {
-  vi.useFakeTimers();
-  render(<MemoryRouter><ETA stop={STOPS.find(stop => stop.id === "kdse")} atStop corridor="D" /></MemoryRouter>);
+  render(<MemoryRouter><ETA stop={STOPS.find(stop => stop.id === "kdse")} atStop corridor={corridor} /></MemoryRouter>);
 };
 
 const advance = milliseconds => act(() => vi.advanceTimersByTime(milliseconds));
 
 describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
-  it("reports a full bus and completes the early E2 pickup", () => {
-    renderDemo();
+  it("reports a missed Bus E and completes the early E2 pickup", () => {
+    renderEta("E");
     expect(screen.getAllByText("Bus E1").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("17 people waiting for Bus E at KDSE").querySelectorAll("svg")).toHaveLength(17);
+    expect(screen.getByLabelText(`${INITIAL_WAITING} people waiting for Bus E at KDSE`).querySelectorAll("svg")).toHaveLength(INITIAL_WAITING);
 
     fireEvent.click(screen.getByRole("button", { name: "I'm waiting for this bus" }));
     expect(screen.getByText("✓ You’re in the live queue")).toBeInTheDocument();
-    expect(screen.getByText("We’ll tell you when Bus E1 is close.")).toBeInTheDocument();
+    expect(screen.getByLabelText("9 people waiting for Bus E at KDSE").querySelectorAll("svg")).toHaveLength(9);
+    expect(screen.getByLabelText("9 people waiting for Bus E at KDSE").querySelectorAll("svg")[8].querySelector("circle")).toHaveAttribute("fill", C.userBlue);
 
-    const queue = screen.getByLabelText("18 people waiting for Bus E at KDSE").querySelectorAll("svg");
-    expect(queue).toHaveLength(18);
-    expect(queue[17].querySelector("circle")).toHaveAttribute("fill", C.userBlue);
+    advance(DEMO_TIMING.queueGrowthTimes[0]);
+    expect(screen.getByLabelText("10 people waiting for Bus E at KDSE")).toBeInTheDocument();
+    advance(DEMO_TIMING.queueGrowthTimes[1] - DEMO_TIMING.queueGrowthTimes[0]);
+    expect(screen.getByLabelText("11 people waiting for Bus E at KDSE")).toBeInTheDocument();
+    advance(DEMO_TIMING.queueGrowthTimes[2] - DEMO_TIMING.queueGrowthTimes[1]);
+    expect(screen.getByLabelText("12 people waiting for Bus E at KDSE")).toBeInTheDocument();
 
-    advance(DEMO_TIMING.firstBusDelay);
+    advance(DEMO_TIMING.progressFirstDelay - DEMO_TIMING.queueGrowthTimes[2]);
+    expect(screen.getByText("Leaving KDOJ")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
+    advance(DEMO_TIMING.progressSecondDelay - DEMO_TIMING.progressFirstDelay);
+    expect(screen.getByText("Approaching KDSE")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+
+    advance(DEMO_TIMING.firstBusDelay - DEMO_TIMING.progressSecondDelay);
     expect(screen.getByText("Bus E1 just arrived at KDSE")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Yes, I got on" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "No, I missed it" }));
@@ -47,7 +53,6 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
     advance(DEMO_TIMING.dispatchDelay);
     expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "false");
     expect(screen.getByText(/left KDOJ/)).toBeInTheDocument();
-    expect(screen.getAllByText("17").length).toBeGreaterThan(0);
 
     advance(DEMO_TIMING.dispatchHideDelay - DEMO_TIMING.dispatchDelay);
     expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "true");
@@ -56,9 +61,9 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
     expect(screen.getByText("Bus E2 just arrived at KDSE")).toBeInTheDocument();
 
     advance(DEMO_TIMING.boardingStagger);
-    expect(screen.getByLabelText("12 people waiting for Bus E at KDSE")).toBeInTheDocument();
+    expect(screen.getByLabelText("8 people waiting for Bus E at KDSE")).toBeInTheDocument();
     advance(DEMO_TIMING.boardingStagger);
-    expect(screen.getByLabelText("6 people waiting for Bus E at KDSE")).toBeInTheDocument();
+    expect(screen.getByLabelText("4 people waiting for Bus E at KDSE")).toBeInTheDocument();
     advance(DEMO_TIMING.boardingStagger);
     expect(screen.getByLabelText("0 people waiting for Bus E at KDSE")).toBeInTheDocument();
 
@@ -74,11 +79,21 @@ it("keeps queue joining disabled outside the stop", () => {
   expect(screen.getByText("You need to be at the stop before you can join its live queue.")).toBeInTheDocument();
 });
 
-it("uses the normal boarded prompt for Bus D at KDSE", () => {
-  renderNormalBusD();
+it("uses the normal progress and boarded prompt for Bus D at KDSE", () => {
+  renderEta("D");
   expect(screen.getAllByText("Bus D2").length).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole("button", { name: "I'm waiting for this bus" }));
-  advance(DEMO_TIMING.firstBusDelay);
+
+  advance(DEMO_TIMING.queueGrowthTimes[2]);
+  expect(screen.getByLabelText("12 people waiting for Bus D at KDSE")).toBeInTheDocument();
+  advance(DEMO_TIMING.progressFirstDelay - DEMO_TIMING.queueGrowthTimes[2]);
+  expect(screen.getByText("Arrived at KLG")).toBeInTheDocument();
+  expect(screen.getByText("6")).toBeInTheDocument();
+  advance(DEMO_TIMING.progressSecondDelay - DEMO_TIMING.progressFirstDelay);
+  expect(screen.getByText("Leaving KLG for KDSE")).toBeInTheDocument();
+  expect(screen.getByText("3")).toBeInTheDocument();
+  advance(DEMO_TIMING.firstBusDelay - DEMO_TIMING.progressSecondDelay);
+
   expect(screen.getByText("Bus D2 just arrived at KDSE")).toBeInTheDocument();
   expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "true");
   fireEvent.click(screen.getByRole("button", { name: /Yes, I’m on/ }));

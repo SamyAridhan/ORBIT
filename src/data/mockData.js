@@ -59,17 +59,18 @@ const BUS_PROFILES = {
   A: { id: "A1", etaMinutes: 9, load: 8, lastSeen: "Jalan Amal", followingBus: "A2" },
   B: { id: "B2", etaMinutes: 12, load: 11, lastSeen: "Cluster T08", followingBus: "B3" },
   C: { id: "C2", etaMinutes: 10, load: 9, lastSeen: "Jalan Amal", followingBus: "C3" },
-  D: { id: "D2", etaMinutes: 11, load: 12, lastSeen: "Jalan Amal", followingBus: "D1" },
+  D: { id: "D2", etaMinutes: 11, load: 10, lastSeen: "Leaving KDOJ", followingBus: "D1" },
   E: { id: "E2", etaMinutes: 14, load: 14, lastSeen: "PKU", followingBus: "E1" },
   F: { id: "F2", etaMinutes: 13, load: 10, lastSeen: "CP", followingBus: "F3" },
   G: { id: "G2", etaMinutes: 15, load: 13, lastSeen: "CP", followingBus: "G3" },
   H: { id: "H1", etaMinutes: 8, load: 7, lastSeen: "V01", followingBus: "H1" },
 };
 
-const waitingFor = index => [4, 6, 3, 5, 2][index % 5];
+const waitingFor = index => [3, 4, 2, 3, 1][index % 5];
 
 export function getBusInfo(corridor, userStopId) {
   if (corridor === "E" && userStopId === "kdse") return DEMO_BUS;
+  if (corridor === "D" && userStopId === "kdse") return BUS_D_KDSE;
   const profile = BUS_PROFILES[corridor];
   const route = ROUTE_STOPS[corridor];
   if (!profile || !route) return DEMO_BUS;
@@ -99,14 +100,28 @@ export const DEMO_BUS = {
   id: "E1",
   corridor: "E",
   etaMinutes: 7,
-  load: 28,
+  load: 24,
   max: 28,
-  lastSeen: "Left KDOJ at 7:30",
+  lastSeen: "Boarding at KDOJ",
   routeToUser: [
-    { id: "kdoj", name: "KDOJ", waiting: 20, isUserStop: false },
+    { id: "kdoj", name: "KDOJ", waiting: 4, isUserStop: false },
     { id: "kdse", name: "KDSE", waiting: 0, isUserStop: true },
   ],
   followingBus: { id: "E2", etaMinutes: 27, status: "Scheduled to leave KDOJ at 7:50" },
+};
+
+export const BUS_D_KDSE = {
+  id: "D2",
+  corridor: "D",
+  etaMinutes: 9,
+  load: 10,
+  max: 28,
+  lastSeen: "Leaving KDOJ",
+  routeToUser: [
+    { id: "klg", name: "KLG", waiting: 4, isUserStop: false },
+    { id: "kdse", name: "KDSE", waiting: 0, isUserStop: true },
+  ],
+  followingBus: { id: "D1", etaMinutes: 28, status: "Scheduled" },
 };
 
 export const RELIEF_BUS = {
@@ -123,8 +138,20 @@ export const RELIEF_BUS = {
   followingBus: { id: "E3", etaMinutes: 30, status: "Waiting" },
 };
 
-export const INITIAL_WAITING = 17;
-export const DEMO_TIMING = { firstBusDelay: 3000, dispatchDelay: 2000, dispatchEtaNew: 17, dispatchHideDelay: 7000, boardingDelay: 12000, boardingStagger: 400, boardingBatch: 6, boardingCount: 18 };
+export const INITIAL_WAITING = 8;
+export const DEMO_TIMING = {
+  queueGrowthTimes: [900, 1600, 2400],
+  progressFirstDelay: 3600,
+  progressSecondDelay: 6200,
+  firstBusDelay: 8500,
+  dispatchDelay: 2200,
+  dispatchEtaNew: 17,
+  dispatchHideDelay: 7600,
+  boardingDelay: 12500,
+  boardingStagger: 400,
+  boardingBatch: 4,
+  boardingCount: 12,
+};
 export const GPS_DETECTION_DELAY = 1500;
 export const NEARBY_DISTANCE = 34;
 export const ONBOARDING = [

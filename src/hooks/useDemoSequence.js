@@ -2,8 +2,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DEMO_TIMING } from "../data/mockData";
 import { debugLog } from "../utils/debug";
 
+const progressFor = scenario => scenario === "overflow"
+  ? [
+      { at: DEMO_TIMING.progressFirstDelay, eta: 5, location: "Leaving KDOJ", loadDelta: 4 },
+      { at: DEMO_TIMING.progressSecondDelay, eta: 2, location: "Approaching KDSE", loadDelta: 4 },
+    ]
+  : [
+      { at: DEMO_TIMING.progressFirstDelay, eta: 6, location: "Arrived at KLG", loadDelta: 4 },
+      { at: DEMO_TIMING.progressSecondDelay, eta: 3, location: "Leaving KLG for KDSE", loadDelta: 4 },
+    ];
+
 export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
   const [eta, setEta] = useState(initialEta);
+  const [locationOverride, setLocationOverride] = useState(null);
+  const [loadDelta, setLoadDelta] = useState(0);
+  const [queueAdds, setQueueAdds] = useState(0);
   const [showArrivalPrompt, setShowArrivalPrompt] = useState(false);
   const [missedReported, setMissedReported] = useState(false);
   const [showDispatch, setShowDispatch] = useState(false);
@@ -27,6 +40,8 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
     debugLog("demo", "Missed full bus reported");
     setMissedReported(true);
     setEta(reliefEta);
+    setLocationOverride("Waiting at KDOJ for its updated departure");
+    setLoadDelta(0);
   }, [isOverflowScenario, reliefEta]);
 
   const reportBoarded = useCallback(() => {
@@ -36,15 +51,30 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
 
   useEffect(() => {
     if (!started || missedReported) return;
-    const timer = setTimeout(() => {
+    const queueTimers = DEMO_TIMING.queueGrowthTimes.map((delay, index) =>
+      setTimeout(() => {
+        debugLog("demo", "Another student joined the queue", { count: index + 1 });
+        setQueueAdds(index + 1);
+      }, delay)
+    );
+    const progressTimers = progressFor(scenario).map(point =>
+      setTimeout(() => {
+        debugLog("demo", "Bus progress update", point);
+        setEta(point.eta);
+        setLocationOverride(point.location);
+        setLoadDelta(point.loadDelta);
+      }, point.at)
+    );
+    const arrivalTimer = setTimeout(() => {
       debugLog("demo", isOverflowScenario ? "E1 arrived at KDSE" : "Bus arrived at stop");
       setEta(0);
+      setLocationOverride(null);
       if (isOverflowScenario) setShowArrivalPrompt(true);
       else setShowBoarding(true);
     }, DEMO_TIMING.firstBusDelay);
-    timers.current = [timer];
-    return () => clearTimeout(timer);
-  }, [started, missedReported, isOverflowScenario]);
+    timers.current = [...queueTimers, ...progressTimers, arrivalTimer];
+    return () => timers.current.forEach(clearTimeout);
+  }, [started, missedReported, isOverflowScenario, scenario]);
 
   useEffect(() => {
     if (!missedReported) return;
@@ -61,15 +91,31 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
         debugLog("demo", "Early E2 departure approved");
         setShowDispatch(true);
         setEta(DEMO_TIMING.dispatchEtaNew);
+        setLocationOverride("Leaving KDOJ earlier than scheduled");
       }, DEMO_TIMING.dispatchDelay),
       setTimeout(() => setShowDispatch(false), DEMO_TIMING.dispatchHideDelay),
       setTimeout(() => {
         debugLog("demo", "E2 arrived at KDSE");
+        setEta(0);
+        setLocationOverride(null);
         setShowBoarding(true);
       }, DEMO_TIMING.boardingDelay),
     ];
     return () => timers.current.forEach(clearTimeout);
   }, [missedReported]);
 
-  return { eta, showArrivalPrompt, missedReported, showDispatch, showBoarding, boardedCount, startSequence, reportMissed, reportBoarded };
+  return {
+    eta,
+    locationOverride,
+    loadDelta,
+    queueAdds,
+    showArrivalPrompt,
+    missedReported,
+    showDispatch,
+    showBoarding,
+    boardedCount,
+    startSequence,
+    reportMissed,
+    reportBoarded,
+  };
 }
