@@ -18,7 +18,7 @@ export default function PriorityStrip({ step, stop }) {
       <span className="font-bold" style={{color:C.text}}>{stop.name}</span>
       {!arrived&&<span style={{color:C.textSec}}>{stop.queue} students waiting</span>}
       {assigned&&<span className="ml-auto rounded-full bg-white px-2.5 py-1 text-xs font-extrabold" style={{color:C.purple}}>Bus E2 assigned</span>}
-      {arrived&&<span style={{color:C.textSec}}>All 16 students are on board · Nobody left waiting</span>}
+      {arrived&&<span style={{color:C.textSec}}>All 18 students are on board · Nobody left waiting</span>}
     </section>
   );
 }

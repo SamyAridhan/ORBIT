@@ -9,7 +9,7 @@ export default function PeopleQueue({ beforeUser, afterUser, userTapped, corrido
     <h2 className="text-sm font-extrabold" style={{color:C.text}}>People waiting for Bus {corridor}</h2>
     <p className="mb-3 mt-0.5 text-[11px]" style={{color:C.textSec}}><strong className="text-base" style={{color:C.primaryLight}}>{total}</strong> {total===1?"person":"people"} waiting at {stopName}</p>
     <div aria-label={`${total} people waiting for Bus ${corridor} at ${stopName}`} className="flex flex-wrap items-end gap-[3px]">{people.map((kind,i)=><PersonSVG key={`${kind}-${i}`} size={size} color={kind==="user"?C.userBlue:C.personBlack} className="person-enter" style={{animationDelay:boardedCount>0?"0ms":i<beforeUser?`${i*45}ms`:"0ms"}}/>)}</div>
-    {userTapped&&total>0&&<p className="mt-2 text-[11px] font-semibold" style={{color:C.userBlue}}>{boardedCount>0?"People are getting on now — you are still in the queue":"The blue person is you · Number 12 in line"}</p>}
+    {userTapped&&total>0&&<p className="mt-2 text-[11px] font-semibold" style={{color:C.userBlue}}>{boardedCount>0?"People are getting on now — you are still in the queue":`The blue person is you · Number ${beforeUser+1} in line`}</p>}
     {total===0&&<p className="mt-2 text-[11px] font-extrabold" style={{color:C.success}}>Everyone waiting has boarded</p>}
   </section>;
 }

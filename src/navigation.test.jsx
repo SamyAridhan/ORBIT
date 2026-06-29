@@ -14,7 +14,7 @@ it("navigates Home to a bus ETA and back without crashing", () => {
   expect(screen.getByText("Where are you going?")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button",{name:/Faculty Cluster/}));
-  expect(screen.getAllByText("Bus E2").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Bus E1").length).toBeGreaterThan(0);
   expect(screen.queryByText("This screen hit an error")).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button",{name:"Back"}));
