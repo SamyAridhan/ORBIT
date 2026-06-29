@@ -26,7 +26,7 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "I'm waiting for this bus" }));
     expect(screen.getByText("✓ You’re in the live queue")).toBeInTheDocument();
-    expect(screen.getByText("We’ll tell you when Bus E1 is close")).toBeInTheDocument();
+    expect(screen.getByText("We’ll tell you when Bus E1 is close.")).toBeInTheDocument();
 
     const queue = screen.getByLabelText("18 people waiting for Bus E at KDSE").querySelectorAll("svg");
     expect(queue).toHaveLength(18);
@@ -34,8 +34,9 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
 
     advance(DEMO_TIMING.firstBusDelay);
     expect(screen.getByText("Bus E1 reached KDSE full")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "I missed this bus" }));
-    expect(screen.getByText(/reported the full bus/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Yes, I got on" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "No, I missed it" }));
+    expect(screen.getByText("✓ Don’t worry, you’re still in the queue")).toBeInTheDocument();
     expect(screen.getAllByText("Bus E2").length).toBeGreaterThan(0);
 
     advance(DEMO_TIMING.dispatchDelay);
@@ -56,8 +57,8 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
     advance(DEMO_TIMING.boardingStagger);
     expect(screen.getByLabelText("0 people waiting for Bus E at KDSE")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Yes, I'm on/ }));
-    expect(screen.getByText(/Have a safe trip/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Yes, I’m on/ }));
+    expect(screen.getByText("Nice, you’re all set. Have a safe trip.")).toBeInTheDocument();
   });
 });
 

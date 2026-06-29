@@ -22,6 +22,6 @@ it("explains boarded and missed-bus responses before completion",()=>{
   fireEvent.click(screen.getByRole("button",{name:"Show page 5"}));
   expect(screen.getByText("Tell us when you get on")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button",{name:"Continue →"}));
-  expect(screen.getByText("Missed the bus? You can stay in the queue")).toBeInTheDocument();
+  expect(screen.getByText("Missed the bus? Don’t worry")).toBeInTheDocument();
   expect(screen.getByRole("button",{name:"Start using ORBIT →"})).toBeInTheDocument();
 });
