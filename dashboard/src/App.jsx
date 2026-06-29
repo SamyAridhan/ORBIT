@@ -11,11 +11,10 @@ import DemoControl from "./components/DemoControl";
 import OverrideModal from "./components/OverrideModal";
 
 const LEGEND = [
-  ["SIGNAL", "New demand"],
-  ["EVAL", "Checking"],
-  ["ACCEPT", "Approved"],
-  ["CLAIM", "Bus assigned"],
-  ["SUPPRESSED", "Extra response avoided"],
+  ["IMPACT", "Passengers left behind"],
+  ["DECISION", "Decision"],
+  ["ACTION", "Action taken"],
+  ["RESOLVED", "Resolved"],
 ];
 
 export default function App() {

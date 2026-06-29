@@ -19,19 +19,19 @@ export const INIT_STOPS=[
 const log=(type,agent,event,desc,chips=[])=>({type,agent,event,desc,chips});
 export const STEPS=[
   {label:"7:40 · E1 approaches two busy stops",busPatch:{},stopPatch:{},logs:[]},
-  {label:"E1 fills up at KDOJ",busPatch:{E1:{status:"BOARDING",position:"KDOJ",load:28,eta:1}},stopPatch:{kdoj_e:{queue:2,lastBus:0}},logs:[log("BOARD","Bus E1","BUS_FULL_AT_KDOJ","E1 had 8 passengers and picked up 20 at KDOJ · The bus is now full · 2 students remain")]},
-  {label:"KDSE students report that E1 was full",busPatch:{E1:{status:"COMMUTING",position:"KDOJ → KDSE",eta:0}},stopPatch:{},logs:[log("SIGNAL","KDSE stop","MISSED_BUS_REPORTS_RECEIVED","Students at KDSE reported that E1 passed full · 18 are still waiting")]},
-  {label:"The system confirms an overflow",busPatch:{},stopPatch:{},logs:[log("BROADCAST","Bus E service","OVERFLOW_CONFIRMED","E1 has no seats left · 2 students remain at KDOJ and 18 remain at KDSE")]},
-  {label:"Bus E2 checks if it can leave early",busPatch:{E2:{status:"RECALCULATING"}},stopPatch:{},logs:[log("EVAL","Bus E2","CHECKING_EARLIER_DEPARTURE","E2 is waiting at KDOJ for its 7:50 departure · The system checks a safe earlier time")]},
-  {label:"A 7:45 departure passes every check",busPatch:{},stopPatch:{},logs:[log("EVAL","Bus E2","SAFETY_CHECKS_PASSED","E2 can leave at 7:45 without running too close to E1",["SAME ROUTE ✓","28 SEATS FREE ✓","SAFE TIME ✓","NO BUS ASSIGNED ✓","15-MINUTE GAP ✓","5 MIN EARLY ✓"])]},
-  {label:"Bus E2 is assigned to the overflow",busPatch:{},stopPatch:{kdse_e:{claimedBy:"E2"},kdoj_e:{claimedBy:"E2"}},logs:[log("CLAIM","Bus E2","BUS_ASSIGNED_TO_OVERFLOW","Bus E2 will collect the students left at KDOJ and KDSE")]},
-  {label:"7:45 · Bus E2 leaves five minutes early",busPatch:{E2:{status:"COMMUTING",position:"KDOJ → KDSE",eta:7,etaGain:5}},stopPatch:{},logs:[log("ACCEPT","Bus E2","EARLIER_DEPARTURE_APPROVED","E2 left KDOJ at 7:45 instead of 7:50 · Expected at KDSE at 7:52")]},
-  {label:"E2 collects the two students at KDOJ",busPatch:{E2:{load:2}},stopPatch:{kdoj_e:{queue:0,level:"LOW",claimedBy:null,lastBus:0}},logs:[log("BOARD","Bus E2","KDOJ_QUEUE_CLEARED","The 2 students left at KDOJ boarded E2 · 26 seats remain for KDSE")]},
-  {label:"7:52 · E2 collects all 18 at KDSE",busPatch:{E2:{status:"BOARDING",position:"KDSE",load:20,eta:0,etaGain:5}},stopPatch:{kdse_e:{queue:0,level:"LOW",claimedBy:null,lastBus:0}},logs:[log("BOARD","Bus E2","KDSE_QUEUE_CLEARED","All 18 students at KDSE boarded E2 · 20 of 28 seats are used · Both overflow queues are clear")]},
+  {label:"E1 fills up at KDOJ",busPatch:{E1:{status:"BOARDING",position:"KDOJ",load:28,eta:1}},stopPatch:{kdoj_e:{queue:2,lastBus:0}},logs:[log("IMPACT","KDOJ stop","2_STUDENTS_MISSED_E1","E1 left KDOJ full · 2 students remain at the stop")]},
+  {label:"E1 cannot pick up the KDSE queue",busPatch:{E1:{status:"COMMUTING",position:"KDOJ → KDSE",eta:0}},stopPatch:{},logs:[log("IMPACT","KDSE stop","18_STUDENTS_MISSED_E1","E1 passed KDSE full · All 18 students remain at the stop")]},
+  {label:"The system confirms 20 students were left behind",busPatch:{},stopPatch:{},logs:[]},
+  {label:"Bus E2 checks a safe earlier departure",busPatch:{E2:{status:"RECALCULATING"}},stopPatch:{},logs:[]},
+  {label:"Earlier departure approved · 6 checks passed",busPatch:{},stopPatch:{},logs:[log("DECISION","Bus E2","EARLIER_DEPARTURE_APPROVED","Bus E2 will leave at 7:45 instead of 7:50 · All 6 safety checks passed")]},
+  {label:"Bus E2 is assigned to the overflow",busPatch:{},stopPatch:{kdse_e:{claimedBy:"E2"},kdoj_e:{claimedBy:"E2"}},logs:[]},
+  {label:"7:45 · Bus E2 starts the relief trip",busPatch:{E2:{status:"COMMUTING",position:"KDOJ → KDSE",eta:7,etaGain:5}},stopPatch:{},logs:[log("ACTION","Bus E2","RELIEF_TRIP_STARTED","E2 left KDOJ at 7:45 with 28 seats available · Expected at KDSE at 7:52")]},
+  {label:"E2 collects the two students at KDOJ",busPatch:{E2:{load:2}},stopPatch:{kdoj_e:{queue:0,level:"LOW",claimedBy:null,lastBus:0}},logs:[]},
+  {label:"7:52 · Both overflow queues are clear",busPatch:{E2:{status:"BOARDING",position:"KDSE",load:20,eta:0,etaGain:5}},stopPatch:{kdse_e:{queue:0,level:"LOW",claimedBy:null,lastBus:0}},logs:[log("RESOLVED","Bus E service","OVERFLOW_CLEARED","Nobody remains at KDOJ or KDSE · Bus E2 now has 20 of 28 seats used")]},
 ];
 export const STATUS_CFG={IDLE:{color:C.textMuted,label:"WAITING TO LEAVE"},COMMUTING:{color:C.primary,label:"ON THE WAY"},BOARDING:{color:C.success,label:"BOARDING NOW"},RECALCULATING:{color:C.accent,label:"CHECKING OPTIONS"}};
 export const DEMAND_CFG={LOW:{color:C.textMuted,bg:"#F8FAFC",text:C.textSec,label:"QUIET"},MEDIUM:{color:C.accent,bg:C.accentLight,text:"#92400E",label:"GETTING BUSY"},HIGH:{color:C.orange,bg:C.orangeLight,text:"#9A3412",label:"BUSY"},CRITICAL:{color:C.red,bg:C.redLight,text:"#991B1B",label:"VERY BUSY"}};
-export const LOG_CFG={SIGNAL:{border:C.primaryLight,bg:"#EFF6FF",icon:"●"},BROADCAST:{border:C.primary,bg:"#EFF6FF",icon:"◉"},EVAL:{border:C.accent,bg:C.accentLight,icon:"⚙"},ACCEPT:{border:C.success,bg:C.successLight,icon:"✓"},CLAIM:{border:C.purple,bg:C.purpleLight,icon:"◆"},SUPPRESSED:{border:C.accent,bg:C.accentLight,icon:"⊘"},REJECT:{border:C.textMuted,bg:"#F8FAFC",icon:"×"},BOARD:{border:C.success,bg:C.successLight,icon:"✓"}};
+export const LOG_CFG={IMPACT:{border:C.red,bg:C.redLight,icon:"!"},DECISION:{border:C.accent,bg:C.accentLight,icon:"✓"},ACTION:{border:C.primaryLight,bg:"#EFF6FF",icon:"→"},RESOLVED:{border:C.success,bg:C.successLight,icon:"✓"},REJECT:{border:C.textMuted,bg:"#F8FAFC",icon:"×"}};
 
 export const SCENARIO_TIMES=["07:40:00","07:41:00","07:42:00","07:42:10","07:42:20","07:42:30","07:42:40","07:45:00","07:45:20","07:52:00"];
 
