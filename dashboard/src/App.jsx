@@ -34,18 +34,18 @@ export default function App() {
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(300px,.9fr)_minmax(330px,1fr)_minmax(460px,1.35fr)]">
         <section className="overflow-y-auto border-r p-4" style={{ background: C.card, borderColor: C.border }}>
           <h2 className="mb-3 text-xs font-extrabold tracking-[.16em]" style={{ color: C.textMuted }}>BUS FLEET · 6 VEHICLES</h2>
-          <div className="space-y-4">{groups.map(group => <div key={group.corridor}><h3 className="mb-2 text-sm font-extrabold" style={{ color: C.primary }}>Corridor {group.corridor}</h3><div className="space-y-2">{group.buses.map(bus => <BusCard key={bus.id} bus={bus} focused={bus.id === "E2"} onOverride={setModalBus}/>)}</div></div>)}</div>
+          <div className="space-y-4">{groups.map(group => <div key={group.corridor}><h3 className="mb-2 text-sm font-extrabold" style={{ color: C.primary }}>Corridor {group.corridor}</h3><div className="space-y-2">{group.buses.map(bus => <BusCard key={bus.id} bus={bus} focused={dashboard.step >= 4 && bus.id === "E2"} priorityStop={dashboard.step >= 4 && bus.id === "E2" ? "KDOJ" : null} onOverride={setModalBus}/>)}</div></div>)}</div>
         </section>
         <section className="overflow-y-auto border-r p-4" style={{ borderColor: C.border }}>
           <h2 className="mb-3 text-xs font-extrabold tracking-[.16em]" style={{ color: C.textMuted }}>STOP DEMAND · 6 MONITORED</h2>
-          <div className="space-y-2">{dashboard.stops.map(stop => <StopCard key={stop.id} stop={stop}/>)}</div>
+          <div className="space-y-2">{dashboard.stops.map(stop => <StopCard key={stop.id} stop={stop} focused={dashboard.step > 0 && stop.id === "kdoj_e"}/>)}</div>
         </section>
         <section className="overflow-y-auto bg-white p-4 pb-28">
           <div className="mb-2 flex items-center"><h2 className="text-xs font-extrabold tracking-[.16em]" style={{ color: C.textMuted }}>AGENT DECISION LOG · LIVE</h2>{dashboard.logs.length > 0 && <span className="ml-auto text-sm font-extrabold" style={{ color: C.primary }}>{dashboard.logs.length} events</span>}</div>
           <div aria-label="Decision log legend" className="mb-3 flex flex-wrap gap-x-3 gap-y-1 border-b pb-2" style={{ borderColor: C.border }}>
             {LEGEND.map(([type,label]) => <span key={type} className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: C.textSec }}><span className="h-2 w-2 rounded-full" style={{ background: LOG_CFG[type].border }}/>{label}</span>)}
           </div>
-          {dashboard.logs.length === 0 ? <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed text-sm" style={{ borderColor: C.border, color: C.textMuted }}>Press → or the right-arrow key to begin the replay</div> : <div className="space-y-2">{dashboard.logs.map(entry => <LogEntry key={entry.key} entry={entry}/>)}</div>}
+          {dashboard.logs.length === 0 ? <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed text-sm" style={{ borderColor: C.border, color: C.textMuted }}>Press → or the right-arrow key to begin the replay</div> : <div className="space-y-2">{dashboard.logs.map((entry,index) => <LogEntry key={entry.key} entry={entry} focused={index === 0}/>)}</div>}
         </section>
       </main>
       <DemoControl step={dashboard.step} totalSteps={dashboard.totalSteps} label={dashboard.stepLabel} onPrev={() => dashboard.goTo(dashboard.step-1)} onNext={() => dashboard.goTo(dashboard.step+1)}/>

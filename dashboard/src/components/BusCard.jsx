@@ -3,13 +3,14 @@ import { C, capacityColor } from "../design/tokens";
 import { STATUS_CFG } from "../data/mockData";
 import CapBar from "./CapBar";
 
-export default function BusCard({ bus, onOverride, focused = false }) {
+export default function BusCard({ bus, onOverride, focused = false, priorityStop = null }) {
   const cfg = STATUS_CFG[bus.status];
   const border = bus.status === "RECALCULATING" ? C.accent : focused ? C.primaryLight : C.border;
 
   return (
     <article
       aria-label={`Bus ${bus.id}`}
+      aria-current={focused ? "step" : undefined}
       className={`rounded-xl border-2 transition-all ${focused ? "p-3 shadow-sm" : "p-2.5 opacity-80"}`}
       style={{ background: C.card, borderColor: border }}
     >
@@ -18,12 +19,13 @@ export default function BusCard({ bus, onOverride, focused = false }) {
         <span className="flex items-center gap-1 text-xs font-bold" style={{ color: cfg.color }}>
           <span className="h-2 w-2 rounded-full" style={{ background: cfg.color }}/>{cfg.label}
         </span>
-        {bus.etaGain > 0 && <span className="ml-auto rounded-full px-2 py-1 text-xs font-bold" style={{ background: C.successLight, color: C.success }}>↑ {bus.etaGain} min sooner</span>}
+        {bus.etaGain > 0 && <span className="ml-auto rounded-full px-2 py-1 text-xs font-bold" title="Compared with the original ETA" style={{ background: C.successLight, color: C.success }}>↑ {bus.etaGain} min vs original ETA</span>}
       </div>
       <div className="mt-2 flex items-center gap-2 text-sm" style={{ color: C.textSec }}>
         <MapPin size={14}/><span className="truncate">{bus.position}</span>
         <span className="ml-auto flex items-center gap-1 font-bold" style={{ color: C.primary }}><TimerReset size={14}/>{bus.eta === 0 ? "Arrived" : `${bus.eta} min`}</span>
       </div>
+      {priorityStop && <div className="mt-2 rounded-md px-2 py-1 text-xs font-extrabold" style={{background:C.primaryDim,color:C.primary}}>Priority stop · {priorityStop}</div>}
       <div className="mt-2 flex items-center gap-2">
         <Gauge size={14} color={capacityColor(bus.load,bus.max)}/>
         <CapBar load={bus.load} max={bus.max}/>
