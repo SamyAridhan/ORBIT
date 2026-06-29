@@ -15,7 +15,7 @@ export default function PriorityStrip({ step, stop }) {
       {arrived?<Bus size={16} color={C.success}/>:high?<AlertTriangle size={16} color={C.orange}/>:<Users size={16} color={C.primary}/>} 
       <strong style={{color:arrived?C.success:high?C.orange:C.primary}}>{arrived?"Bus E2 is here":high?"Busy stop":"Most people waiting"}</strong>
       <span className="h-4 w-px" style={{background:C.border}}/>
-      <span className="font-bold" style={{color:C.text}}>KDOJ</span>
+      <span className="font-bold" style={{color:C.text}}>{stop.name}</span>
       {!arrived&&<span style={{color:C.textSec}}>{stop.queue} students waiting</span>}
       {assigned&&<span className="ml-auto rounded-full bg-white px-2.5 py-1 text-xs font-extrabold" style={{color:C.purple}}>Bus E2 assigned</span>}
       {arrived&&<span style={{color:C.textSec}}>All 16 students are on board · Nobody left waiting</span>}

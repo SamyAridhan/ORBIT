@@ -24,21 +24,21 @@ export default function App() {
   const groups = useMemo(() => ["E", "B", "F"].map(corridor => ({corridor, buses: dashboard.buses.filter(bus => bus.corridor === corridor)})), [dashboard.buses]);
   const active = dashboard.buses.filter(bus => bus.status !== "IDLE").length;
   const high = dashboard.stops.filter(stop => ["HIGH", "CRITICAL"].includes(stop.level)).length;
-  const kdoj = dashboard.stops.find(stop => stop.id === "kdoj_e");
+  const targetStop = dashboard.stops.find(stop => stop.id === "kdse_e");
   const confirm = () => { dashboard.applyOverride(modalBus.id); setModalBus(null); };
 
   return (
     <div className="flex h-screen min-w-[1100px] flex-col overflow-hidden" style={{ background: C.bg }}>
       <Header active={active} high={high} decisions={dashboard.logs.length} time={SCENARIO_TIMES[dashboard.step]}/>
-      <PriorityStrip step={dashboard.step} stop={kdoj}/>
+      <PriorityStrip step={dashboard.step} stop={targetStop}/>
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(300px,.9fr)_minmax(330px,1fr)_minmax(460px,1.35fr)]">
         <section className="overflow-y-auto border-r p-4" style={{ background: C.card, borderColor: C.border }}>
           <h2 className="mb-3 text-xs font-extrabold tracking-[.16em]" style={{ color: C.textMuted }}>BUSES · 6 TOTAL</h2>
-          <div className="space-y-4">{groups.map(group => <div key={group.corridor}><h3 className="mb-2 text-sm font-extrabold" style={{ color: C.primary }}>Bus {group.corridor} route</h3><div className="space-y-2">{group.buses.map(bus => <BusCard key={bus.id} bus={bus} focused={dashboard.step >= 4 && bus.id === "E2"} priorityStop={dashboard.step >= 4 && bus.id === "E2" ? "KDOJ" : null} onOverride={setModalBus}/>)}</div></div>)}</div>
+          <div className="space-y-4">{groups.map(group => <div key={group.corridor}><h3 className="mb-2 text-sm font-extrabold" style={{ color: C.primary }}>Bus {group.corridor} route</h3><div className="space-y-2">{group.buses.map(bus => <BusCard key={bus.id} bus={bus} focused={dashboard.step >= 4 && bus.id === "E2"} priorityStop={dashboard.step >= 4 && bus.id === "E2" ? "KDSE" : null} onOverride={setModalBus}/>)}</div></div>)}</div>
         </section>
         <section className="overflow-y-auto border-r p-4" style={{ borderColor: C.border }}>
           <h2 className="mb-3 text-xs font-extrabold tracking-[.16em]" style={{ color: C.textMuted }}>BUS STOPS · 6 WATCHED</h2>
-          <div className="space-y-2">{dashboard.stops.map(stop => <StopCard key={stop.id} stop={stop} focused={dashboard.step > 0 && stop.id === "kdoj_e"}/>)}</div>
+          <div className="space-y-2">{dashboard.stops.map(stop => <StopCard key={stop.id} stop={stop} focused={dashboard.step > 0 && stop.id === "kdse_e"}/>)}</div>
         </section>
         <section className="overflow-y-auto bg-white p-4 pb-28">
           <div className="mb-2 flex items-center"><h2 className="text-xs font-extrabold tracking-[.16em]" style={{ color: C.textMuted }}>WHAT THE SYSTEM DECIDED</h2>{dashboard.logs.length > 0 && <span className="ml-auto text-sm font-extrabold" style={{ color: C.primary }}>{dashboard.logs.length} updates</span>}</div>

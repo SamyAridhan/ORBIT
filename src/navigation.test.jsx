@@ -10,7 +10,7 @@ afterEach(cleanup);
 it("navigates Home to a bus ETA and back without crashing", () => {
   render(<MemoryRouter initialEntries={["/"]}><App/></MemoryRouter>);
   expect(screen.queryByRole("button",{name:/DEBUG/})).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button",{name:/KDOJ Kolej Dato' Onn Jaafar/}));
+  fireEvent.click(screen.getByRole("button",{name:/KDSE Kolej Datin Seri Endon/}));
   expect(screen.getByText("Where are you going?")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button",{name:/Faculty Cluster/}));

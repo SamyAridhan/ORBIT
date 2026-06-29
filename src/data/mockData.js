@@ -26,7 +26,7 @@ const ROUTE_STOPS = {
   B:["kp","k910","t02","t04","t08"],
   C:["k910","ktc","cp","jalan_amal"],
   D:["kdoj","klg","kdse","pku","cp","jalan_amal"],
-  E:["kdoj","klg","kdse","cp","n24","ktc","t02","t06","t08"],
+  E:["kdoj","kdse","klg","cp","n24","ktc","t02","t06","t08"],
   F:["ktr","ktho","ktdi","jalan_amal","cp"],
   G:["ktr","ktho","ktdi","n24","skt","p19","cp"],
   H:["cp","jalan_amal","v01"],
@@ -53,7 +53,7 @@ const BUS_PROFILES = {
 const waitingFor = (index) => [4,6,3,5,2][index % 5];
 
 export function getBusInfo(corridor, userStopId) {
-  if(corridor === "E" && userStopId === "kdoj") return DEMO_BUS;
+  if(corridor === "E" && userStopId === "kdse") return DEMO_BUS;
   const profile=BUS_PROFILES[corridor], route=ROUTE_STOPS[corridor];
   if(!profile || !route) return DEMO_BUS;
   const targetIndex=route.indexOf(userStopId);
@@ -67,18 +67,17 @@ export function getBusInfo(corridor, userStopId) {
     id:profile.id, corridor, etaMinutes:profile.etaMinutes, load:profile.load, max:28,
     lastSeen:ROUTE_STOP_NAMES[route[lastSeenIndex]] || profile.lastSeen,
     routeToUser:[...approachStops,{ id:userStopId, name:ROUTE_STOP_NAMES[userStopId], waiting:0, isUserStop:true }],
-    followingBus:{ id:profile.followingBus, etaMinutes:profile.etaMinutes+24, status:"At terminus" },
+    followingBus:{ id:profile.followingBus, etaMinutes:profile.etaMinutes+24, status:"Waiting" },
   };
 }
 
 export const DEMO_BUS = {
-  id:"E2", corridor:"E", etaMinutes:14, load:0, max:28, lastSeen:"Bus E terminus",
+  id:"E2", corridor:"E", etaMinutes:14, load:0, max:28, lastSeen:"KDOJ",
   routeToUser:[
-    { id:"kdse", name:"KDSE", waiting:4, isUserStop:false },
-    { id:"klg", name:"KLG", waiting:5, isUserStop:false },
-    { id:"kdoj", name:"KDOJ", waiting:0, isUserStop:true },
+    { id:"kdoj", name:"KDOJ", waiting:5, isUserStop:false },
+    { id:"kdse", name:"KDSE", waiting:0, isUserStop:true },
   ],
-  followingBus:{ id:"E1", etaMinutes:38, status:"At terminus" },
+  followingBus:{ id:"E1", etaMinutes:38, status:"Waiting" },
 };
 
 export const INITIAL_WAITING = 11;
