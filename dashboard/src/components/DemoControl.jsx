@@ -18,7 +18,6 @@ export default function DemoControl({ step, totalSteps, label, onPrev, onNext })
       className="fixed bottom-2 right-2 z-40 flex items-center gap-0.5 rounded-md border bg-white/90 p-0.5 shadow-sm backdrop-blur"
       style={{ borderColor: C.border }}
     >
-      <span className="sr-only">{label}</span>
       <button
         aria-label="Previous step"
         disabled={step === 0}
@@ -27,9 +26,14 @@ export default function DemoControl({ step, totalSteps, label, onPrev, onNext })
       >
         <ChevronLeft size={13} strokeWidth={2} />
       </button>
-      <span className="min-w-7 text-center text-[9px] font-semibold tabular-nums text-slate-400">
-        {step}/{totalSteps - 1}
-      </span>
+      <div className="flex max-w-64 items-center gap-1.5 px-1">
+        <span className="shrink-0 text-[9px] font-semibold tabular-nums text-slate-400">
+          {step}/{totalSteps - 1}
+        </span>
+        <span className="truncate text-[10px] font-medium text-slate-500">
+          {label}
+        </span>
+      </div>
       <button
         aria-label="Next step"
         disabled={step === totalSteps - 1}
