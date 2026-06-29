@@ -148,8 +148,9 @@ export const DEMO_TIMING = {
   dispatchEtaNew: 17,
   dispatchHideDelay: 7600,
   boardingDelay: 12500,
+  boardingOffsets: [260, 620, 980, 1470, 1850, 2380, 2800, 3380, 3850, 4470, 5010, 5660],
   boardingStagger: 400,
-  boardingBatch: 4,
+  boardingBatch: 1,
   boardingCount: 12,
 };
 export const GPS_DETECTION_DELAY = 1500;

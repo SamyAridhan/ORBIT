@@ -12,6 +12,15 @@ const progressFor = scenario => scenario === "overflow"
       { at: DEMO_TIMING.progressSecondDelay, eta: 3, location: "Leaving KLG for KDSE", loadDelta: 4, servedStopIds: ["klg"] },
     ];
 
+const boardingTimersFrom = (startAt, label, setBoardedCount) =>
+  DEMO_TIMING.boardingOffsets.map((offset, index) =>
+    setTimeout(() => {
+      const count = Math.min(DEMO_TIMING.boardingCount, index + 1);
+      debugLog("demo", label, { count });
+      setBoardedCount(count);
+    }, startAt + offset)
+  );
+
 export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
   const [eta, setEta] = useState(initialEta);
   const [locationOverride, setLocationOverride] = useState(null);
@@ -80,19 +89,14 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
       if (isOverflowScenario) setShowArrivalPrompt(true);
       else setShowBoarding(true);
     }, DEMO_TIMING.firstBusDelay);
-    timers.current = [...queueTimers, ...progressTimers, arrivalTimer];
+    const boardingTimers = isOverflowScenario ? [] : boardingTimersFrom(DEMO_TIMING.firstBusDelay, "Students boarded bus", setBoardedCount);
+    timers.current = [...queueTimers, ...progressTimers, arrivalTimer, ...boardingTimers];
     return () => timers.current.forEach(clearTimeout);
   }, [started, missedReported, isOverflowScenario, scenario]);
 
   useEffect(() => {
     if (!missedReported) return;
-    const boardingTimers = Array.from({ length: Math.ceil(DEMO_TIMING.boardingCount / DEMO_TIMING.boardingBatch) }, (_, index) =>
-      setTimeout(() => {
-        const count = Math.min(DEMO_TIMING.boardingCount, (index + 1) * DEMO_TIMING.boardingBatch);
-        debugLog("demo", "Students boarded E2", { count });
-        setBoardedCount(count);
-      }, DEMO_TIMING.boardingDelay + ((index + 1) * DEMO_TIMING.boardingStagger))
-    );
+    const boardingTimers = boardingTimersFrom(DEMO_TIMING.boardingDelay, "Students boarded E2", setBoardedCount);
     timers.current = [
       ...boardingTimers,
       setTimeout(() => {

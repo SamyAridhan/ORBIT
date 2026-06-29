@@ -24,7 +24,7 @@ export default function ETA({ stop, atStop, corridor }) {
   const boardingBus = missedReported ? RELIEF_BUS : bus;
   const total = INITIAL_WAITING + (userTapped ? 1 : 0) + queueAdds;
   const currentLoad = Math.min(activeBus.max, activeBus.load + loadDelta);
-  const queueBoarded = showBoarding ? (missedReported ? Math.min(boardedCount, Math.max(0, total - (userTapped && !userBoarded ? 1 : 0))) : Math.max(0, total - (userTapped && !userBoarded ? 1 : 0))) : 0;
+  const queueBoarded = showBoarding ? Math.min(boardedCount, Math.max(0, total - (userTapped && !userBoarded ? 1 : 0))) : 0;
   const remaining = Math.max(0, total - queueBoarded);
   const liveLoad = Math.min(activeBus.max, currentLoad + queueBoarded);
   const showQueueConfirmation = userTapped && !hideQueueConfirmation && !showBoarding;
