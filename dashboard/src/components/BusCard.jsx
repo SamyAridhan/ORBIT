@@ -1,5 +1,43 @@
-import {Gauge,MapPin,TimerReset} from "lucide-react";
-import {C,capacityColor} from "../design/tokens";
-import {STATUS_CFG} from "../data/mockData";
+import { Gauge, MapPin, SlidersHorizontal, TimerReset } from "lucide-react";
+import { C, capacityColor } from "../design/tokens";
+import { STATUS_CFG } from "../data/mockData";
 import CapBar from "./CapBar";
-export default function BusCard({bus,onOverride}){const cfg=STATUS_CFG[bus.status];return <article aria-label={`Bus ${bus.id}`} className="rounded-xl border-2 p-3 transition-colors" style={{background:C.card,borderColor:bus.status==="RECALCULATING"?C.accent:C.border}}><div className="flex items-center gap-2"><strong className="rounded-md px-2 py-1 text-sm text-white" style={{background:C.primary}}>{bus.id}</strong><span className="flex items-center gap-1 text-xs font-bold" style={{color:cfg.color}}><span className="h-2 w-2 rounded-full" style={{background:cfg.color}}/>{cfg.label}</span>{bus.etaGain>0&&<span className="ml-auto rounded-full px-2 py-1 text-xs font-bold" style={{background:C.successLight,color:C.success}}>↑ {bus.etaGain} min sooner</span>}</div><div className="mt-3 flex items-center gap-2 text-sm" style={{color:C.textSec}}><MapPin size={15}/><span className="truncate">{bus.position}</span><span className="ml-auto flex items-center gap-1 font-bold" style={{color:C.primary}}><TimerReset size={15}/>{bus.eta===0?"Arrived":`${bus.eta} min`}</span></div><div className="mt-3 flex items-center gap-2"><Gauge size={15} color={capacityColor(bus.load,bus.max)}/><CapBar load={bus.load} max={bus.max}/><span className="text-xs font-bold" style={{color:capacityColor(bus.load,bus.max)}}>{bus.load}/{bus.max}</span></div><button aria-label={`Override timing for Bus ${bus.id}`} onClick={()=>onOverride(bus)} className="mt-3 w-full rounded-lg border py-2 text-xs font-bold transition-colors hover:border-amber-500 hover:text-amber-600" style={{borderColor:C.border,color:C.textSec}}>Override timing</button></article>}
+
+export default function BusCard({ bus, onOverride, focused = false }) {
+  const cfg = STATUS_CFG[bus.status];
+  const border = bus.status === "RECALCULATING" ? C.accent : focused ? C.primaryLight : C.border;
+
+  return (
+    <article
+      aria-label={`Bus ${bus.id}`}
+      className={`rounded-xl border-2 transition-all ${focused ? "p-3 shadow-sm" : "p-2.5 opacity-80"}`}
+      style={{ background: C.card, borderColor: border }}
+    >
+      <div className="flex items-center gap-2">
+        <strong className="rounded-md px-2 py-1 text-sm text-white" style={{ background: C.primary }}>{bus.id}</strong>
+        <span className="flex items-center gap-1 text-xs font-bold" style={{ color: cfg.color }}>
+          <span className="h-2 w-2 rounded-full" style={{ background: cfg.color }}/>{cfg.label}
+        </span>
+        {bus.etaGain > 0 && <span className="ml-auto rounded-full px-2 py-1 text-xs font-bold" style={{ background: C.successLight, color: C.success }}>↑ {bus.etaGain} min sooner</span>}
+      </div>
+      <div className="mt-2 flex items-center gap-2 text-sm" style={{ color: C.textSec }}>
+        <MapPin size={14}/><span className="truncate">{bus.position}</span>
+        <span className="ml-auto flex items-center gap-1 font-bold" style={{ color: C.primary }}><TimerReset size={14}/>{bus.eta === 0 ? "Arrived" : `${bus.eta} min`}</span>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <Gauge size={14} color={capacityColor(bus.load,bus.max)}/>
+        <CapBar load={bus.load} max={bus.max}/>
+        <span className="text-xs font-bold" style={{ color: capacityColor(bus.load,bus.max) }}>{bus.load}/{bus.max}</span>
+        <button
+          aria-label={`Override timing for Bus ${bus.id}`}
+          title="Override timing"
+          onClick={() => onOverride(bus)}
+          className="ml-1 flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-bold transition-colors hover:border-amber-500 hover:text-amber-600"
+          style={{ borderColor: C.border, color: C.textSec }}
+        >
+          <SlidersHorizontal size={12}/>Override
+        </button>
+      </div>
+    </article>
+  );
+}

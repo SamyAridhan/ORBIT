@@ -26,12 +26,14 @@ export const STEPS=[
   {label:"Safe arrival compression selected",busPatch:{},stopPatch:{},logs:[log("EVAL","BUS_E2","CONSTRAINTS_CHECKED","All guards pass · Arrival compression is the safest available intervention",["CORRIDOR ✓","CAPACITY ✓","PROTECTED TIME ✓","CLAIM FREE ✓","UPCOMING STOP ✓","NO OVERFLOW ✓"])]},
   {label:"ETA improves from 14 to 7 minutes",busPatch:{E2:{status:"COMMUTING",position:"KDSE → KLG",eta:7,etaGain:7}},stopPatch:{},logs:[log("ACCEPT","BUS_E2","ARRIVAL_COMPRESSION_ACCEPTED","ETA improved 14 → 7 min · Intermediate dwell reduced safely")]},
   {label:"KDOJ claimed by Bus E2",busPatch:{},stopPatch:{kdoj_e:{claimedBy:"E2"}},logs:[log("CLAIM","BUS_E2","CLAIM_PUBLISHED","tasks/kdoj/claim · KDOJ assigned to E2 for this response")]},
-  {label:"Bus E1 suppresses duplicate response",busPatch:{},stopPatch:{},logs:[log("REJECT","BUS_E1","CLAIM_CHECK_FAIL","KDOJ already claimed by E2 · Duplicate response suppressed")]},
+  {label:"Bus E1 suppresses duplicate response",busPatch:{},stopPatch:{},logs:[log("SUPPRESSED","BUS_E1","DUPLICATE_RESPONSE_SUPPRESSED","KDOJ already claimed by E2 · No duplicate intervention issued")]},
   {label:"E2 arrives and boarding prompt is sent",busPatch:{E2:{status:"BOARDING",position:"KDOJ",eta:0,etaGain:7}},stopPatch:{kdoj_e:{claimedBy:null,lastBus:0}},logs:[log("BOARD","BUS_E2","BOARDING_PROMPT_SENT","E2 entered KDOJ geofence · Prompt sent to 16 active queue sessions")]},
 ];
 export const STATUS_CFG={IDLE:{color:C.textMuted,label:"IDLE"},COMMUTING:{color:C.primary,label:"COMMUTING"},BOARDING:{color:C.success,label:"BOARDING"},RECALCULATING:{color:C.accent,label:"EVALUATING"}};
 export const DEMAND_CFG={LOW:{color:C.textMuted,bg:"#F8FAFC",text:C.textSec},MEDIUM:{color:C.accent,bg:C.accentLight,text:"#92400E"},HIGH:{color:C.orange,bg:C.orangeLight,text:"#9A3412"},CRITICAL:{color:C.red,bg:C.redLight,text:"#991B1B"}};
-export const LOG_CFG={SIGNAL:{border:C.primaryLight,bg:"#EFF6FF",icon:"●"},BROADCAST:{border:C.primary,bg:"#EFF6FF",icon:"◉"},EVAL:{border:C.accent,bg:C.accentLight,icon:"⚙"},ACCEPT:{border:C.success,bg:C.successLight,icon:"✓"},CLAIM:{border:C.purple,bg:C.purpleLight,icon:"◆"},REJECT:{border:C.textMuted,bg:"#F8FAFC",icon:"×"},BOARD:{border:C.success,bg:C.successLight,icon:"✓"}};
+export const LOG_CFG={SIGNAL:{border:C.primaryLight,bg:"#EFF6FF",icon:"●"},BROADCAST:{border:C.primary,bg:"#EFF6FF",icon:"◉"},EVAL:{border:C.accent,bg:C.accentLight,icon:"⚙"},ACCEPT:{border:C.success,bg:C.successLight,icon:"✓"},CLAIM:{border:C.purple,bg:C.purpleLight,icon:"◆"},SUPPRESSED:{border:C.accent,bg:C.accentLight,icon:"⊘"},REJECT:{border:C.textMuted,bg:"#F8FAFC",icon:"×"},BOARD:{border:C.success,bg:C.successLight,icon:"✓"}};
+
+export const SCENARIO_TIMES=["09:41:07","09:41:10","09:41:13","09:41:16","09:41:19","09:41:22","09:41:25","09:41:28","09:41:31","09:41:34"];
 
 export function deriveState(targetStep){
   let buses=INIT_BUSES.map(bus=>({...bus}));
