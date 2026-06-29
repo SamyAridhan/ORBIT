@@ -17,7 +17,7 @@ export function useDemoSequence(initialEta, reliefEta) {
 
   useEffect(()=>{
     if(!started||missedReported) return;
-    const timer=setTimeout(()=>{debugLog("demo","E1 arrived full");setShowFullBus(true);setEta(0)},DEMO_TIMING.firstBusDelay);
+    const timer=setTimeout(()=>{debugLog("demo","E1 reached KDSE full");setShowFullBus(true);setEta(0)},DEMO_TIMING.firstBusDelay);
     timers.current=[timer];
     return()=>clearTimeout(timer);
   },[started,missedReported]);

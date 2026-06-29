@@ -72,16 +72,16 @@ export function getBusInfo(corridor, userStopId) {
 }
 
 export const DEMO_BUS = {
-  id:"E1", corridor:"E", etaMinutes:2, load:8, max:28, lastSeen:"Approaching KDOJ",
+  id:"E1", corridor:"E", etaMinutes:7, load:28, max:28, lastSeen:"Left KDOJ at 7:40",
   routeToUser:[
     { id:"kdoj", name:"KDOJ", waiting:20, isUserStop:false },
     { id:"kdse", name:"KDSE", waiting:0, isUserStop:true },
   ],
-  followingBus:{ id:"E2", etaMinutes:17, status:"Waiting at KDOJ" },
+  followingBus:{ id:"E2", etaMinutes:27, status:"Scheduled to leave KDOJ at 8:00" },
 };
 
 export const RELIEF_BUS = {
-  id:"E2", corridor:"E", etaMinutes:17, load:0, max:28, lastSeen:"KDOJ",
+  id:"E2", corridor:"E", etaMinutes:27, load:0, max:28, lastSeen:"Waiting at KDOJ for 8:00",
   routeToUser:[
     { id:"kdoj", name:"KDOJ", waiting:2, isUserStop:false },
     { id:"kdse", name:"KDSE", waiting:0, isUserStop:true },
@@ -90,7 +90,7 @@ export const RELIEF_BUS = {
 };
 
 export const INITIAL_WAITING = 17;
-export const DEMO_TIMING = { firstBusDelay:3000, dispatchDelay:2000, dispatchEtaNew:12, dispatchHideDelay:7000, boardingDelay:12000, boardingStagger:400, boardingBatch:6, boardingCount:18 };
+export const DEMO_TIMING = { firstBusDelay:3000, dispatchDelay:2000, dispatchEtaNew:17, dispatchHideDelay:7000, boardingDelay:12000, boardingStagger:400, boardingBatch:6, boardingCount:18 };
 export const GPS_DETECTION_DELAY = 1500;
 export const NEARBY_DISTANCE = 34;
 export const ONBOARDING = [

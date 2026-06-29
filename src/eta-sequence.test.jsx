@@ -22,7 +22,7 @@ describe.each([1,2,3,4,5])("overflow demo run %i",()=>{
     expect(queue[17].querySelector("circle")).toHaveAttribute("fill",C.userBlue);
 
     advance(DEMO_TIMING.firstBusDelay);
-    expect(screen.getByText("Bus E1 arrived full")).toBeInTheDocument();
+    expect(screen.getByText("Bus E1 reached KDSE full")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button",{name:"I missed this bus"}));
     expect(screen.getByText(/reported the full bus/)).toBeInTheDocument();
     expect(screen.getAllByText("Bus E2").length).toBeGreaterThan(0);
@@ -30,7 +30,7 @@ describe.each([1,2,3,4,5])("overflow demo run %i",()=>{
     advance(DEMO_TIMING.dispatchDelay);
     expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden","false");
     expect(screen.getByText(/left KDOJ/)).toBeInTheDocument();
-    expect(screen.getAllByText("12").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("17").length).toBeGreaterThan(0);
     advance(DEMO_TIMING.dispatchHideDelay-DEMO_TIMING.dispatchDelay);
     expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden","true");
 
