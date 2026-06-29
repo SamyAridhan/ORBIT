@@ -13,7 +13,7 @@ export default function PeopleQueue({ beforeUser, afterUser, userTapped, corrido
       <p className="mb-3 mt-0.5 text-[11px]" style={{ color: C.textSec }}>
         <strong className="text-base" style={{ color: C.primaryLight }}>{total}</strong> {total === 1 ? "person" : "people"} waiting at {stopName}
       </p>
-      <div aria-label={`${total} people waiting for Bus ${corridor} at ${stopName}`} className="flex flex-wrap items-end gap-[3px]">
+      <div aria-label={`${total} ${total === 1 ? "person" : "people"} waiting for Bus ${corridor} at ${stopName}`} className="flex flex-wrap items-end gap-[3px]">
         {people.map((kind, i) => (
           <PersonSVG
             key={`${kind}-${i}`}

@@ -53,11 +53,10 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
     advance(DEMO_TIMING.dispatchDelay);
     expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "false");
     expect(screen.getByText(/left KDOJ/)).toBeInTheDocument();
-
-    advance(DEMO_TIMING.dispatchHideDelay - DEMO_TIMING.dispatchDelay);
+    fireEvent.click(screen.getByRole("button", { name: "Got it" }));
     expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "true");
 
-    advance(DEMO_TIMING.boardingDelay - DEMO_TIMING.dispatchHideDelay);
+    advance(DEMO_TIMING.boardingDelay - DEMO_TIMING.dispatchDelay);
     expect(screen.getByText("Bus E2 just arrived at KDSE")).toBeInTheDocument();
 
     advance(DEMO_TIMING.boardingStagger);
@@ -65,9 +64,10 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
     advance(DEMO_TIMING.boardingStagger);
     expect(screen.getByLabelText("4 people waiting for Bus E at KDSE")).toBeInTheDocument();
     advance(DEMO_TIMING.boardingStagger);
-    expect(screen.getByLabelText("0 people waiting for Bus E at KDSE")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 person waiting for Bus E at KDSE")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Yes, I’m on/ }));
+    expect(screen.getByLabelText("0 people waiting for Bus E at KDSE")).toBeInTheDocument();
     expect(screen.getByText("Nice, you’re all set. Have a safe trip.")).toBeInTheDocument();
   });
 });
@@ -96,6 +96,8 @@ it("uses the normal progress and boarded prompt for Bus D at KDSE", () => {
 
   expect(screen.getByText("Bus D2 just arrived at KDSE")).toBeInTheDocument();
   expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "true");
+  expect(screen.getByLabelText("1 person waiting for Bus D at KDSE")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /Yes, I’m on/ }));
+  expect(screen.getByLabelText("0 people waiting for Bus D at KDSE")).toBeInTheDocument();
   expect(screen.getByText("Nice, you’re all set. Have a safe trip.")).toBeInTheDocument();
 });

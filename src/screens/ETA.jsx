@@ -14,16 +14,18 @@ import { debugLog } from "../utils/debug";
 
 export default function ETA({ stop, atStop, corridor }) {
   const [userTapped, setUserTapped] = useState(false);
+  const [userBoarded, setUserBoarded] = useState(false);
   const navigate = useNavigate();
   const bus = getBusInfo(corridor, stop.id);
   const scenario = corridor === "E" && stop.id === "kdse" ? "overflow" : "normal";
-  const { eta, locationOverride, loadDelta, queueAdds, showArrivalPrompt, missedReported, showDispatch, showBoarding, boardedCount, startSequence, reportMissed, reportBoarded } = useDemoSequence(bus.etaMinutes, RELIEF_BUS.etaMinutes, scenario);
+  const { eta, locationOverride, loadDelta, servedStopIds, queueAdds, showArrivalPrompt, missedReported, showDispatch, showBoarding, boardedCount, startSequence, reportMissed, reportBoarded, dismissDispatch } = useDemoSequence(bus.etaMinutes, RELIEF_BUS.etaMinutes, scenario);
   const activeBus = missedReported ? RELIEF_BUS : bus;
   const boardingBus = missedReported ? RELIEF_BUS : bus;
   const total = INITIAL_WAITING + (userTapped ? 1 : 0) + queueAdds;
-  const remaining = Math.max(0, total - boardedCount);
   const currentLoad = Math.min(activeBus.max, activeBus.load + loadDelta);
-  const liveLoad = Math.min(activeBus.max, currentLoad + boardedCount);
+  const queueBoarded = showBoarding ? (missedReported ? Math.min(boardedCount, Math.max(0, total - (userTapped && !userBoarded ? 1 : 0))) : Math.max(0, total - (userTapped && !userBoarded ? 1 : 0))) : 0;
+  const remaining = Math.max(0, total - queueBoarded);
+  const liveLoad = Math.min(activeBus.max, currentLoad + queueBoarded);
 
   const tap = () => {
     if (!atStop || userTapped) {
@@ -40,8 +42,8 @@ export default function ETA({ stop, atStop, corridor }) {
       <TopBar title={stop.name} sub={CORRIDORS[corridor]?.label} badge={atStop} onBack={() => navigate("/destination")} />
       <div className="space-y-3 p-3">
         <FullBusPrompt show={showArrivalPrompt} bus={bus} stop={stop} onBoarded={reportBoarded} onMissed={reportMissed} />
-        <DispatchBanner show={showDispatch} busId={RELIEF_BUS.id} departureStop="KDOJ" newEta={DEMO_TIMING.dispatchEtaNew} oldEta={RELIEF_BUS.etaMinutes} totalWaiting={total} />
-        <BoardingPrompt show={showBoarding} bus={boardingBus} stop={stop} />
+        <DispatchBanner show={showDispatch && !showBoarding} busId={RELIEF_BUS.id} departureStop="KDOJ" newEta={DEMO_TIMING.dispatchEtaNew} oldEta={RELIEF_BUS.etaMinutes} totalWaiting={total} onDismiss={dismissDispatch} />
+        <BoardingPrompt show={showBoarding} bus={boardingBus} stop={stop} onBoarded={() => setUserBoarded(true)} />
 
         <section className="rounded-2xl border p-3" style={{ background: C.card, borderColor: C.border }}>
           <div className="flex items-center justify-between gap-3">
@@ -65,7 +67,7 @@ export default function ETA({ stop, atStop, corridor }) {
           <div className="mt-2.5"><CapacityBar load={showBoarding ? liveLoad : currentLoad} max={activeBus.max} /></div>
         </section>
 
-        <PeopleQueue beforeUser={INITIAL_WAITING} afterUser={queueAdds} userTapped={userTapped} corridor={corridor} stopName={stop.name} boardedCount={boardedCount} />
+        <PeopleQueue beforeUser={INITIAL_WAITING} afterUser={queueAdds} userTapped={userTapped} corridor={corridor} stopName={stop.name} boardedCount={queueBoarded} />
 
         {userTapped ? (
           <div className="rounded-xl p-4" style={{ background: C.successLight, color: C.success }}>
@@ -83,7 +85,7 @@ export default function ETA({ stop, atStop, corridor }) {
           </>
         )}
 
-        <RouteTimeline bus={activeBus} liveWaitingAtUserStop={remaining} />
+        <RouteTimeline bus={activeBus} liveWaitingAtUserStop={remaining} currentLoad={showBoarding ? liveLoad : currentLoad} currentLocation={showBoarding ? `Boarding now at ${stop.name}` : locationOverride || activeBus.lastSeen} servedStopIds={servedStopIds} />
       </div>
     </main>
   );

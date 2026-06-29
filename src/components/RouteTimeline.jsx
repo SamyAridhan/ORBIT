@@ -2,21 +2,49 @@ import { C } from "../design/tokens";
 import CapacityBar from "./CapacityBar";
 import BusLoader from "./BusLoader";
 
-export default function RouteTimeline({ bus, liveWaitingAtUserStop }) {
-  let running=bus.load;
-  const stops=bus.routeToUser.map(stop=>{ if(!stop.isUserStop) running=Math.min(bus.max,running+stop.waiting); return {...stop,running}; });
-  const seats=bus.max-running;
-  const forecast=seats<=0?"⚠️ The bus may be full when it reaches you":seats<=3?`⚠️ About ${seats} seat${seats===1?"":"s"} may be left`:`✓ About ${seats} seats should be left`;
-  return <section className="rounded-2xl border p-4" style={{ background:C.card, borderColor:C.border }}>
-    <div className="mb-4 rounded-xl p-3" style={{ background:C.bg }}><div className="mb-3 flex items-center gap-3"><BusLoader size={69}/><div><h2 className="text-sm font-extrabold" style={{ color:C.text }}>Bus {bus.id}</h2><p className="text-[11px]" style={{ color:C.textSec }}>Current location: {bus.lastSeen}</p></div></div><CapacityBar load={bus.load} max={bus.max}/></div>
-    <div className="ml-3">
-      {stops.map((stop)=><div key={stop.id} className={`relative border-l-2 pb-5 pl-6 last:pb-1`} style={{ borderColor:stop.isUserStop?C.primaryLight:C.border }}>
-        <span className={`absolute rounded-full ${stop.isUserStop?"-left-[8px] top-0 h-[14px] w-[14px] border-[3px]":"-left-[5px] top-1 h-2 w-2"}`} style={{ background:stop.isUserStop?C.primaryLight:C.textMuted, borderColor:C.card }}/>
-        <div className={stop.isUserStop?"rounded-xl p-3":""} style={stop.isUserStop?{ background:C.bg }:undefined}>
-          <p className="text-xs font-extrabold" style={{ color:C.text }}>{stop.name}{stop.isUserStop?" — Your stop":` · ${stop.waiting} getting on`}</p>
-          {stop.isUserStop?<><p className="mt-1 text-[11px]" style={{ color:C.textSec }}>{liveWaitingAtUserStop} people waiting here</p><p className="mt-1 text-[11px] font-bold" style={{ color:seats<=3?C.red:C.success }}>{forecast}</p></>:<p className="mt-1 text-[11px]" style={{ color:stop.running/bus.max>=.85?C.red:C.textSec }}>{stop.running} of {bus.max} seats used after this stop</p>}
+export default function RouteTimeline({ bus, liveWaitingAtUserStop, currentLoad = bus.load, currentLocation = bus.lastSeen, servedStopIds = [] }) {
+  let running = currentLoad;
+  const served = new Set(servedStopIds);
+  const stops = bus.routeToUser.map(stop => {
+    const alreadyServed = served.has(stop.id);
+    if (!stop.isUserStop && !alreadyServed) running = Math.min(bus.max, running + stop.waiting);
+    return { ...stop, running, alreadyServed };
+  });
+  const seats = bus.max - running;
+  const forecast = seats <= 0 ? "The bus may be full when it reaches you" : seats <= 3 ? `About ${seats} seat${seats === 1 ? "" : "s"} may be left` : `About ${seats} seats should be left`;
+
+  return (
+    <section className="rounded-2xl border p-4" style={{ background: C.card, borderColor: C.border }}>
+      <div className="mb-4 rounded-xl p-3" style={{ background: C.bg }}>
+        <div className="mb-3 flex items-center gap-3">
+          <BusLoader size={69} />
+          <div>
+            <h2 className="text-sm font-extrabold" style={{ color: C.text }}>Bus {bus.id}</h2>
+            <p className="text-[11px]" style={{ color: C.textSec }}>Current location: {currentLocation}</p>
+          </div>
         </div>
-      </div>)}
-    </div>
-  </section>;
+        <CapacityBar load={currentLoad} max={bus.max} />
+      </div>
+      <div className="ml-3">
+        {stops.map(stop => (
+          <div key={stop.id} className="relative border-l-2 pb-5 pl-6 last:pb-1" style={{ borderColor: stop.isUserStop ? C.primaryLight : C.border }}>
+            <span className={`absolute rounded-full ${stop.isUserStop ? "-left-[8px] top-0 h-[14px] w-[14px] border-[3px]" : "-left-[5px] top-1 h-2 w-2"}`} style={{ background: stop.isUserStop ? C.primaryLight : C.textMuted, borderColor: C.card }} />
+            <div className={stop.isUserStop ? "rounded-xl p-3" : ""} style={stop.isUserStop ? { background: C.bg } : undefined}>
+              <p className="text-xs font-extrabold" style={{ color: C.text }}>
+                {stop.name}{stop.isUserStop ? " — Your stop" : stop.alreadyServed ? " · boarded" : ` · ${stop.waiting} getting on`}
+              </p>
+              {stop.isUserStop ? (
+                <>
+                  <p className="mt-1 text-[11px]" style={{ color: C.textSec }}>{liveWaitingAtUserStop} people waiting here</p>
+                  <p className="mt-1 text-[11px] font-bold" style={{ color: seats <= 3 ? C.red : C.success }}>{forecast}</p>
+                </>
+              ) : (
+                <p className="mt-1 text-[11px]" style={{ color: stop.running / bus.max >= .85 ? C.red : C.textSec }}>{stop.running} of {bus.max} seats used after this stop</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }

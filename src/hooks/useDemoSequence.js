@@ -4,18 +4,19 @@ import { debugLog } from "../utils/debug";
 
 const progressFor = scenario => scenario === "overflow"
   ? [
-      { at: DEMO_TIMING.progressFirstDelay, eta: 5, location: "Leaving KDOJ", loadDelta: 4 },
-      { at: DEMO_TIMING.progressSecondDelay, eta: 2, location: "Approaching KDSE", loadDelta: 4 },
+      { at: DEMO_TIMING.progressFirstDelay, eta: 5, location: "Leaving KDOJ", loadDelta: 4, servedStopIds: ["kdoj"] },
+      { at: DEMO_TIMING.progressSecondDelay, eta: 2, location: "Approaching KDSE", loadDelta: 4, servedStopIds: ["kdoj"] },
     ]
   : [
-      { at: DEMO_TIMING.progressFirstDelay, eta: 6, location: "Arrived at KLG", loadDelta: 4 },
-      { at: DEMO_TIMING.progressSecondDelay, eta: 3, location: "Leaving KLG for KDSE", loadDelta: 4 },
+      { at: DEMO_TIMING.progressFirstDelay, eta: 6, location: "Arrived at KLG", loadDelta: 4, servedStopIds: ["klg"] },
+      { at: DEMO_TIMING.progressSecondDelay, eta: 3, location: "Leaving KLG for KDSE", loadDelta: 4, servedStopIds: ["klg"] },
     ];
 
 export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
   const [eta, setEta] = useState(initialEta);
   const [locationOverride, setLocationOverride] = useState(null);
   const [loadDelta, setLoadDelta] = useState(0);
+  const [servedStopIds, setServedStopIds] = useState([]);
   const [queueAdds, setQueueAdds] = useState(0);
   const [showArrivalPrompt, setShowArrivalPrompt] = useState(false);
   const [missedReported, setMissedReported] = useState(false);
@@ -42,7 +43,13 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
     setEta(reliefEta);
     setLocationOverride("Waiting at KDOJ for its updated departure");
     setLoadDelta(0);
+    setServedStopIds([]);
   }, [isOverflowScenario, reliefEta]);
+
+  const dismissDispatch = useCallback(() => {
+    debugLog("demo", "Early departure message dismissed");
+    setShowDispatch(false);
+  }, []);
 
   const reportBoarded = useCallback(() => {
     debugLog("demo", "Boarded bus confirmed");
@@ -63,6 +70,7 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
         setEta(point.eta);
         setLocationOverride(point.location);
         setLoadDelta(point.loadDelta);
+        setServedStopIds(point.servedStopIds);
       }, point.at)
     );
     const arrivalTimer = setTimeout(() => {
@@ -93,7 +101,6 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
         setEta(DEMO_TIMING.dispatchEtaNew);
         setLocationOverride("Leaving KDOJ earlier than scheduled");
       }, DEMO_TIMING.dispatchDelay),
-      setTimeout(() => setShowDispatch(false), DEMO_TIMING.dispatchHideDelay),
       setTimeout(() => {
         debugLog("demo", "E2 arrived at KDSE");
         setEta(0);
@@ -108,6 +115,7 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
     eta,
     locationOverride,
     loadDelta,
+    servedStopIds,
     queueAdds,
     showArrivalPrompt,
     missedReported,
@@ -117,5 +125,6 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
     startSequence,
     reportMissed,
     reportBoarded,
+    dismissDispatch,
   };
 }
