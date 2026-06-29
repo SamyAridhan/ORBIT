@@ -1,0 +1,2 @@
+@tailwind base;@tailwind components;@tailwind utilities;
+html,body,#root{height:100%;margin:0}body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button{font:inherit;cursor:pointer}button:disabled{cursor:default}@keyframes critical-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.72)}}.critical-pulse{animation:critical-pulse 1.4s ease-in-out infinite}@media(prefers-reduced-motion:reduce){.critical-pulse{animation:none}}

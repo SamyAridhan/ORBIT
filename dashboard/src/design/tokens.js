@@ -1,0 +1,2 @@
+export const C={bg:"#F0F4FF",card:"#FFFFFF",primary:"#1E3A8A",primaryLight:"#3B5FD4",success:"#059669",successLight:"#D1FAE5",accent:"#F59E0B",accentLight:"#FEF3C7",red:"#DC2626",redLight:"#FEE2E2",orange:"#EA580C",orangeLight:"#FFEDD5",purple:"#7C3AED",purpleLight:"#EDE9FE",text:"#0F172A",textSec:"#64748B",textMuted:"#94A3B8",border:"#E2E8F0"};
+export const capacityColor=(load,max)=>load/max<.6?C.success:load/max<.85?C.accent:C.red;
