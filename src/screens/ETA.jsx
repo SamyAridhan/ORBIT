@@ -15,6 +15,7 @@ import { debugLog } from "../utils/debug";
 export default function ETA({ stop, atStop, corridor }) {
   const [userTapped, setUserTapped] = useState(false);
   const [userBoarded, setUserBoarded] = useState(false);
+  const [hideQueueConfirmation, setHideQueueConfirmation] = useState(false);
   const navigate = useNavigate();
   const bus = getBusInfo(corridor, stop.id);
   const scenario = corridor === "E" && stop.id === "kdse" ? "overflow" : "normal";
@@ -26,6 +27,12 @@ export default function ETA({ stop, atStop, corridor }) {
   const queueBoarded = showBoarding ? (missedReported ? Math.min(boardedCount, Math.max(0, total - (userTapped && !userBoarded ? 1 : 0))) : Math.max(0, total - (userTapped && !userBoarded ? 1 : 0))) : 0;
   const remaining = Math.max(0, total - queueBoarded);
   const liveLoad = Math.min(activeBus.max, currentLoad + queueBoarded);
+  const showQueueConfirmation = userTapped && !hideQueueConfirmation && !showBoarding;
+
+  const acknowledgeDispatch = () => {
+    dismissDispatch();
+    setHideQueueConfirmation(true);
+  };
 
   const tap = () => {
     if (!atStop || userTapped) {
@@ -34,6 +41,8 @@ export default function ETA({ stop, atStop, corridor }) {
     }
     debugLog("demand", "User joined queue", { bus: bus.id, stop: stop.id, corridor });
     setUserTapped(true);
+    setUserBoarded(false);
+    setHideQueueConfirmation(false);
     startSequence();
   };
 
@@ -42,7 +51,7 @@ export default function ETA({ stop, atStop, corridor }) {
       <TopBar title={stop.name} sub={CORRIDORS[corridor]?.label} badge={atStop} onBack={() => navigate("/destination")} />
       <div className="space-y-3 p-3">
         <FullBusPrompt show={showArrivalPrompt} bus={bus} stop={stop} onBoarded={reportBoarded} onMissed={reportMissed} />
-        <DispatchBanner show={showDispatch && !showBoarding} busId={RELIEF_BUS.id} departureStop="KDOJ" newEta={DEMO_TIMING.dispatchEtaNew} oldEta={RELIEF_BUS.etaMinutes} totalWaiting={total} onDismiss={dismissDispatch} />
+        <DispatchBanner show={showDispatch && !showBoarding} busId={RELIEF_BUS.id} departureStop="KDOJ" newEta={DEMO_TIMING.dispatchEtaNew} oldEta={RELIEF_BUS.etaMinutes} totalWaiting={total} onDismiss={acknowledgeDispatch} />
         <BoardingPrompt show={showBoarding} bus={boardingBus} stop={stop} onBoarded={() => setUserBoarded(true)} />
 
         <section className="rounded-2xl border p-3" style={{ background: C.card, borderColor: C.border }}>
@@ -69,12 +78,12 @@ export default function ETA({ stop, atStop, corridor }) {
 
         <PeopleQueue beforeUser={INITIAL_WAITING} afterUser={queueAdds} userTapped={userTapped} corridor={corridor} stopName={stop.name} boardedCount={queueBoarded} />
 
-        {userTapped ? (
+        {showQueueConfirmation ? (
           <div className="rounded-xl p-4" style={{ background: C.successLight, color: C.success }}>
             <strong className="text-sm">✓ {missedReported ? "Don’t worry, you’re still in the queue" : "You’re in the live queue"}</strong>
             <p className="mt-1 text-[11px]">{missedReported ? `ORBIT is checking the next best Bus ${corridor} option for you.` : `We’ll tell you when Bus ${bus.id} is close.`}</p>
           </div>
-        ) : (
+        ) : !userTapped ? (
           <>
             <button disabled={!atStop} onClick={tap} className="w-full rounded-xl py-3.5 font-extrabold text-white disabled:cursor-not-allowed" style={{ background: atStop ? C.primary : C.border, color: atStop ? C.card : C.textMuted, boxShadow: atStop ? SHADOW.primary : "none" }}>
               {atStop ? "I'm waiting for this bus" : `🔒 Go to ${stop.name} to join the queue`}
@@ -83,7 +92,7 @@ export default function ETA({ stop, atStop, corridor }) {
               {atStop ? "This adds you to the live queue and helps ORBIT respond to demand" : "You need to be at the stop before you can join its live queue."}
             </p>
           </>
-        )}
+        ) : null}
 
         <RouteTimeline bus={activeBus} liveWaitingAtUserStop={remaining} currentLoad={showBoarding ? liveLoad : currentLoad} currentLocation={showBoarding ? `Boarding now at ${stop.name}` : locationOverride || activeBus.lastSeen} servedStopIds={servedStopIds} />
       </div>

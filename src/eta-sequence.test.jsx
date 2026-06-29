@@ -55,6 +55,7 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
     expect(screen.getByText(/left KDOJ/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Got it" }));
     expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByText("✓ Don’t worry, you’re still in the queue")).not.toBeInTheDocument();
 
     advance(DEMO_TIMING.boardingDelay - DEMO_TIMING.dispatchDelay);
     expect(screen.getByText("Bus E2 just arrived at KDSE")).toBeInTheDocument();
@@ -70,6 +71,23 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
     expect(screen.getByLabelText("0 people waiting for Bus E at KDSE")).toBeInTheDocument();
     expect(screen.getByText("Nice, you’re all set. Have a safe trip.")).toBeInTheDocument();
   });
+});
+
+it("hides the missed-bus queue message when the new bus prompt appears", () => {
+  renderEta("E");
+  fireEvent.click(screen.getByRole("button", { name: "I'm waiting for this bus" }));
+
+  advance(DEMO_TIMING.firstBusDelay);
+  fireEvent.click(screen.getByRole("button", { name: "No, I missed it" }));
+  expect(screen.getByText("✓ Don’t worry, you’re still in the queue")).toBeInTheDocument();
+
+  advance(DEMO_TIMING.dispatchDelay);
+  expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "false");
+
+  advance(DEMO_TIMING.boardingDelay - DEMO_TIMING.dispatchDelay);
+  expect(screen.getByText("Bus E2 just arrived at KDSE")).toBeInTheDocument();
+  expect(screen.queryByText("✓ Don’t worry, you’re still in the queue")).not.toBeInTheDocument();
+  expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "true");
 });
 
 it("keeps queue joining disabled outside the stop", () => {
