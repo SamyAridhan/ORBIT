@@ -1,4 +1,4 @@
-import { Gauge, MapPin, SlidersHorizontal, TimerReset } from "lucide-react";
+import { Gauge, MapPin, RotateCcw, TimerReset } from "lucide-react";
 import { C, capacityColor } from "../design/tokens";
 import { STATUS_CFG } from "../data/mockData";
 import CapBar from "./CapBar";
@@ -28,15 +28,15 @@ export default function BusCard({ bus, onOverride }) {
         <Gauge size={14} color={capacityColor(bus.load,bus.max)}/>
         <CapBar load={bus.load} max={bus.max}/>
         <span key={bus.load} className="state-change text-xs font-bold" style={{ color: capacityColor(bus.load,bus.max) }}>{bus.load}/{bus.max}</span>
-        <button
-          aria-label={`Change the plan for Bus ${bus.id}`}
-          title="Change this bus plan"
+        {bus.status === "READY" && <button
+          aria-label={`Undo ORBIT's change for Bus ${bus.id}`}
+          title="Undo ORBIT's departure change"
           onClick={() => onOverride(bus)}
-          className="ml-1 flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-bold transition-colors hover:border-amber-500 hover:text-amber-600"
-          style={{ borderColor: C.border, color: C.textSec }}
+          className="ml-1 flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-bold text-white transition-opacity hover:opacity-85"
+          style={{ borderColor: C.red, background: C.red }}
         >
-          <SlidersHorizontal size={12}/>Change plan
-        </button>
+          <RotateCcw size={12}/>Undo change
+        </button>}
       </div>
     </article>
   );
