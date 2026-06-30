@@ -33,6 +33,7 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
   const [showBoarding, setShowBoarding] = useState(false);
   const [boardedCount, setBoardedCount] = useState(0);
   const [started, setStarted] = useState(false);
+  const [dispatchAcknowledged, setDispatchAcknowledged] = useState(false);
   const timers = useRef([]);
   const isOverflowScenario = scenario === "overflow";
 
@@ -53,11 +54,13 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
     setLocationOverride("Waiting at KDOJ for its updated departure");
     setLoadDelta(0);
     setServedStopIds([]);
+    setDispatchAcknowledged(false);
   }, [isOverflowScenario, reliefEta]);
 
   const dismissDispatch = useCallback(() => {
     debugLog("demo", "Early departure message dismissed");
     setShowDispatch(false);
+    setDispatchAcknowledged(true);
   }, []);
 
   const reportBoarded = useCallback(() => {
@@ -96,24 +99,29 @@ export function useDemoSequence(initialEta, reliefEta, scenario = "normal") {
 
   useEffect(() => {
     if (!missedReported) return;
-    const boardingTimers = boardingTimersFrom(DEMO_TIMING.boardingDelay, "Students boarded E2", setBoardedCount);
-    timers.current = [
-      ...boardingTimers,
-      setTimeout(() => {
+    const dispatchTimer = setTimeout(() => {
         debugLog("demo", "Early E2 departure approved");
         setShowDispatch(true);
         setEta(DEMO_TIMING.dispatchEtaNew);
         setLocationOverride("Leaving KDOJ earlier than scheduled");
-      }, DEMO_TIMING.dispatchDelay),
-      setTimeout(() => {
-        debugLog("demo", "E2 arrived at KDSE");
-        setEta(0);
-        setLocationOverride(null);
-        setShowBoarding(true);
-      }, DEMO_TIMING.boardingDelay),
-    ];
+      }, DEMO_TIMING.dispatchDelay);
+    timers.current = [dispatchTimer];
     return () => timers.current.forEach(clearTimeout);
   }, [missedReported]);
+
+  useEffect(() => {
+    if (!dispatchAcknowledged) return;
+    const boardingStart = DEMO_TIMING.postDispatchBoardingDelay;
+    const arrivalTimer = setTimeout(() => {
+      debugLog("demo", "E2 arrived at KDSE");
+      setEta(0);
+      setLocationOverride(null);
+      setShowBoarding(true);
+    }, boardingStart);
+    const boardingTimers = boardingTimersFrom(boardingStart, "Students boarded E2", setBoardedCount);
+    timers.current = [arrivalTimer, ...boardingTimers];
+    return () => timers.current.forEach(clearTimeout);
+  }, [dispatchAcknowledged]);
 
   return {
     eta,

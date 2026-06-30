@@ -49,15 +49,23 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
     fireEvent.click(screen.getByRole("button", { name: "No, I missed it" }));
     expect(screen.getByText("✓ Don’t worry, you’re still in the queue")).toBeInTheDocument();
     expect(screen.getAllByText("Bus E2").length).toBeGreaterThan(0);
+    expect(screen.getByText("27")).toBeInTheDocument();
 
-    advance(DEMO_TIMING.dispatchDelay);
+    advance(DEMO_TIMING.dispatchDelay - 1);
+    expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByText("Bus E2 just arrived at KDSE")).not.toBeInTheDocument();
+    advance(1);
+    expect(screen.getByText("17")).toBeInTheDocument();
     expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "false");
     expect(screen.getByText(/left KDOJ/)).toBeInTheDocument();
+    advance(30000);
+    expect(screen.queryByText("Bus E2 just arrived at KDSE")).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Got it" }));
     expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByText("✓ Don’t worry, you’re still in the queue")).not.toBeInTheDocument();
 
-    advance(DEMO_TIMING.boardingDelay - DEMO_TIMING.dispatchDelay);
+    advance(DEMO_TIMING.postDispatchBoardingDelay);
     expect(screen.getByText("Bus E2 just arrived at KDSE")).toBeInTheDocument();
     expect(screen.getByLabelText("12 people waiting for Bus E at KDSE")).toBeInTheDocument();
 
@@ -74,7 +82,7 @@ describe.each([1, 2, 3, 4, 5])("overflow demo run %i", () => {
   });
 });
 
-it("hides the missed-bus queue message when the new bus prompt appears", () => {
+it("waits for Got it before continuing to the new Bus E boarding prompt", () => {
   renderEta("E");
   fireEvent.click(screen.getByRole("button", { name: "I'm waiting for this bus" }));
 
@@ -85,7 +93,11 @@ it("hides the missed-bus queue message when the new bus prompt appears", () => {
   advance(DEMO_TIMING.dispatchDelay);
   expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "false");
 
-  advance(DEMO_TIMING.boardingDelay - DEMO_TIMING.dispatchDelay);
+  advance(30000);
+  expect(screen.queryByText("Bus E2 just arrived at KDSE")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+  advance(DEMO_TIMING.postDispatchBoardingDelay);
   expect(screen.getByText("Bus E2 just arrived at KDSE")).toBeInTheDocument();
   expect(screen.queryByText("✓ Don’t worry, you’re still in the queue")).not.toBeInTheDocument();
   expect(screen.getByText(/Bus E2 is leaving early/).closest("section")).toHaveAttribute("aria-hidden", "true");
