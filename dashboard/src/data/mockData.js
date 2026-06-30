@@ -20,10 +20,10 @@ const log=(type,agent,event,desc,chips=[])=>({type,agent,event,desc,chips});
 export const STEPS=[
   {label:"7:30 · E1 starts its route from KDOJ",busPatch:{},stopPatch:{},logs:[]},
   {label:"7:30 · E1 leaves KDOJ full",busPatch:{E1:{status:"COMMUTING",position:"KDOJ → KDSE",load:28,eta:7}},stopPatch:{kdoj_e:{queue:2,level:"LOW",lastBus:0,busHere:false}},logs:[log("IMPACT","KDOJ stop","2_STUDENTS_MISSED_E1","E1 left KDOJ full · 2 students remain at the stop")]},
-  {label:"7:37 · E1 cannot pick up the KDSE queue",busPatch:{E1:{status:"PASSING_FULL",position:"KDSE",eta:0}},stopPatch:{kdse_e:{busHere:true}},logs:[log("IMPACT","KDSE stop","18_STUDENTS_MISSED_E1","E1 reached KDSE full · All 18 students remain at the stop")]},
+  {label:"7:37 · E1 cannot pick up the KDSE queue",busPatch:{E1:{status:"PASSING_FULL",position:"KDSE",eta:0},E2:{eta:13}},stopPatch:{kdse_e:{busHere:true}},logs:[log("IMPACT","KDSE stop","18_STUDENTS_MISSED_E1","E1 reached KDSE full · All 18 students remain at the stop")]},
   {label:"Bus E2 starts checking a response",busPatch:{E2:{status:"RECALCULATING"}},stopPatch:{},logs:[]},
   {label:"Bus E2 checks whether early departure is safe",busPatch:{E2:{status:"VERIFYING"}},stopPatch:{},logs:[]},
-  {label:"Earlier departure approved · 6 checks passed",busPatch:{E2:{status:"READY"}},stopPatch:{},logs:[log("DECISION","Bus E2","EARLIER_DEPARTURE_APPROVED","Bus E2 will leave at 7:40 instead of 7:50 · All 6 safety checks passed, including a safe 10-minute gap behind E1")]},
+  {label:"Earlier departure approved · 6 checks passed",busPatch:{E2:{status:"READY",eta:2}},stopPatch:{},logs:[log("DECISION","Bus E2","EARLIER_DEPARTURE_APPROVED","Bus E2 will leave at 7:40 instead of 7:50 · All 6 safety checks passed, including a safe 10-minute gap behind E1")]},
   {label:"Bus E2 is assigned to the overflow",busPatch:{},stopPatch:{kdse_e:{claimedBy:"E2"},kdoj_e:{claimedBy:"E2"}},logs:[]},
   {label:"7:40 · E2 collects the KDOJ queue and leaves",busPatch:{E2:{status:"COMMUTING",position:"KDOJ → KDSE",load:2,eta:7,etaGain:10}},stopPatch:{kdoj_e:{queue:0,level:"LOW",claimedBy:null,lastBus:0,busHere:false},kdse_e:{busHere:false}},logs:[log("ACTION","Bus E2","RELIEF_TRIP_STARTED","E2 picked up the 2 students at KDOJ and left at 7:40 · Expected at KDSE at 7:47")]},
   {label:"7:44 · E2 approaches KDSE",busPatch:{E2:{position:"Approaching KDSE",eta:3}},stopPatch:{},logs:[]},

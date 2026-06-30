@@ -6,6 +6,7 @@ import CapBar from "./CapBar";
 export default function BusCard({ bus, onOverride }) {
   const cfg = STATUS_CFG[bus.status];
   const border = ["RECALCULATING","VERIFYING"].includes(bus.status) ? C.accent : bus.status === "READY" ? C.success : bus.status === "PASSING_FULL" ? C.red : C.border;
+  const waitingToLeave = ["IDLE", "RECALCULATING", "VERIFYING", "READY"].includes(bus.status);
 
   return (
     <article
@@ -22,7 +23,7 @@ export default function BusCard({ bus, onOverride }) {
       </div>
       <div className="mt-2 flex items-center gap-2 text-sm" style={{ color: C.textSec }}>
         <MapPin size={14}/><span key={bus.position} className="state-change truncate">{bus.position}</span>
-        <span key={`${bus.status}-${bus.eta}`} className="state-change ml-auto flex items-center gap-1 font-bold" style={{ color: C.primary }}><TimerReset size={14}/>{bus.status==="IDLE"?`Leaves in ${bus.eta} min`:bus.eta===0?"At stop":`${bus.eta} min away`}</span>
+        <span key={`${bus.status}-${bus.eta}`} className="state-change ml-auto flex items-center gap-1 font-bold" style={{ color: C.primary }}><TimerReset size={14}/>{waitingToLeave?`Leaves in ${bus.eta} min`:bus.eta===0?"At stop":`${bus.eta} min away`}</span>
       </div>
       <div className="mt-2 flex items-center gap-2">
         <Gauge size={14} color={capacityColor(bus.load,bus.max)}/>
