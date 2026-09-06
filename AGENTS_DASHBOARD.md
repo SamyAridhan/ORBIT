@@ -1,6 +1,6 @@
 # AGENTS_DASHBOARD.md — ORBIT Fleet Dashboard
 
-The dashboard lives in `dashboard/` as a separate Vite application and Vercel project. Read `context_modules_2/00` through `05` for supporting design context, but use this file when they conflict with the implemented student PWA.
+The dashboard lives in `dashboard/` as a separate Vite application and Vercel project. Read `dashboard_context_modules/00` through `05` for supporting design context, but use this file when they conflict with the implemented student PWA.
 
 ## Locked corrections
 

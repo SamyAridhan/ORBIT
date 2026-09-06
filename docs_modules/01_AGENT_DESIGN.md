@@ -1,5 +1,7 @@
 # Module 01 — ORBIT Agent Design Specification
-> Updated May 2026: Timing intervention hierarchy added. Stranded passenger problem addressed.
+> Rewritten July 2026: **Arrival compression removed as a modeled intervention.** See `00_MASTER_CONTEXT.md`'s
+> "Design Correction: Arrival Compression Removed" for why. The Bus Agent now chooses between exactly
+> two interventions — Hold and Early Departure — plus an explicit "no safe intervention" outcome.
 > System name: ORBIT (On-Demand, Route-Based Intelligent Transit System)
 
 ---
@@ -12,11 +14,13 @@
 | Bus Agent | Deliberative agent | 1 per bus service | Evaluates timing interventions, coordinates |
 | Demand Engine | Environment model | 1 global | Fallback only — feeds Stop Agents when app adoption is low |
 
-**PSM2 simulation scope:** Model 3 corridors (Bus B, E, F) = 7 Bus Agents, ~10 Stop Agent instances.
+**Simulation scope:** Model 3 corridors (Bus B, E, F) = 7 Bus Agents, ~10 Stop Agent instances.
 
 ---
 
 ## Stop Agent
+
+*(Unchanged by the compression correction — Stop Agent behaviour does not reference interventions.)*
 
 ### Responsibility
 Aggregate demand signals from the student app for its assigned corridor-stop. Classify demand level. Broadcast when HIGH or CRITICAL. Fall back to simulation engine when app adoption is low.
@@ -33,22 +37,17 @@ Aggregate demand signals from the student app for its assigned corridor-stop. Cl
 ```python
 def get_queue_count(stop_id, corridor_id, sim_time):
     app_count = app_demand_store.get_count(stop_id, corridor_id)
-    
+
     if app_count is not None and app_adoption_rate(stop_id) >= 0.3:
-        # Enough app users — trust the app signal
-        # Scale up slightly to account for non-app users
         adoption = app_adoption_rate(stop_id)
-        return int(app_count / adoption)  # e.g. 9 app users / 0.3 adoption = ~30 total
+        return int(app_count / adoption)
     else:
-        # Low adoption — fall back to simulation
         return demand_engine.get_queue_count(stop_id, sim_time)
 ```
 
-**Destination attribution:**
-When app signals are available, the Stop Agent knows exactly how many students are waiting for each corridor. This completely resolves the destination ambiguity problem at multi-route stops — a student who submitted via app declared their corridor explicitly.
+**Destination attribution:** When app signals are available, the Stop Agent knows exactly how many students are waiting for each corridor — resolves destination ambiguity at multi-route stops.
 
-**Interchange stops (CP, Jalan Amal):**
-These stops do NOT generate dispatch signals regardless of queue count. They are waypoints only. Students at CP using the app would have submitted their signal at their origin stop (KDOJ, KTR etc.), not at CP. Stop Agents at interchange stops exist for position tracking only, not demand broadcasting.
+**Interchange stops (CP, Jalan Amal):** Never generate dispatch signals regardless of queue count. Waypoints only, position tracking only.
 
 ### Demand Classification
 
@@ -61,35 +60,29 @@ These stops do NOT generate dispatch signals regardless of queue count. They are
 
 ### State Variables
 ```python
-stop_id: str                    # e.g. "kdoj"
-corridor_id: str                # e.g. "E"
+stop_id: str
+corridor_id: str
 queue_count: int
 demand_level: enum[LOW, MEDIUM, HIGH, CRITICAL]
 is_claimed: bool
 last_broadcast_time: datetime
 last_bus_visit_time: datetime
-app_adoption_rate: float        # rolling estimate, 0.0–1.0
-is_interchange: bool            # True for CP, Jalan Amal — no dispatch signals
+app_adoption_rate: float
+is_interchange: bool
 ```
 
 ### Signal Integrity — AI Anomaly Detection
 
-The Stop Agent uses a lightweight learned anomaly detector to validate incoming demand counts, replacing a hardcoded multiplier threshold. This is the AI component of the system — small, honest, self-contained.
-
-**Why a learned model instead of a fixed rule:**
-A fixed `count > expected * 3` threshold applies the same tolerance to every stop at every time. But KDOJ at 7:45am on a Monday has a very different normal range than KDOJ at 2pm on a Saturday. An Isolation Forest model trained per (stop, corridor, hour, weekday) bucket learns these patterns from simulation history and flags deviations from the actual learned normal — not from a blunt multiplier.
-
-**Model:** Isolation Forest (Liu et al., 2008). Unsupervised, lightweight, no GPU, trains in seconds on simulation run history. Output is binary: anomalous or not.
+Isolation Forest (Liu et al., 2008), trained per (stop, corridor, hour, weekday) bucket. Unsupervised, lightweight, no GPU.
 
 ```python
 from sklearn.ensemble import IsolationForest
 
 class DemandAnomalyDetector:
     def __init__(self):
-        self.models = {}  # keyed by (stop_id, corridor_id, hour, weekday)
+        self.models = {}
 
     def train(self, historical_counts):
-        # Train after first few simulation runs
         for key, counts in historical_counts.items():
             self.models[key] = IsolationForest(contamination=0.05, random_state=42)
             self.models[key].fit([[c] for c in counts])
@@ -99,28 +92,10 @@ class DemandAnomalyDetector:
         if key not in self.models:
             return count > 90  # hardcoded fallback until model is trained
         result = self.models[key].predict([[count]])
-        return result[0] == -1  # IsolationForest: -1 = anomaly, 1 = normal
-
-# Stop Agent usage
-def update_queue_from_app(self, app_count, sim_time):
-    if anomaly_detector.is_anomalous(
-            self.stop_id, self.corridor_id, app_count, sim_time):
-        mqtt.publish("system/log", {
-            "agent_id": self.stop_id,
-            "event": "DEMAND_SIGNAL_REJECTED",
-            "reason": "anomaly detector flagged count as implausible",
-            "received": app_count,
-            "model_key": f"{self.stop_id}:{self.corridor_id}:"
-                         f"{sim_time.hour}:{sim_time.weekday()}"
-        })
-        return
-    self.queue_count = self.scale_for_adoption(app_count)
-    self.update_demand_level()
+        return result[0] == -1
 ```
 
-**PSM2 training schedule:** Runs 1–2 use hardcoded fallback. From Run 3 onwards, anomaly detector is active. Every rejection is logged to fleet dashboard with the model key for transparency.
-
-**Scope boundary:** This component detects bad input data. It does not predict demand, does not influence routing, and is not evaluated as a standalone AI system. It is a signal integrity component of the Stop Agent.
+**Scope boundary:** Detects bad input data. Does not predict demand, does not influence routing, is not evaluated as a standalone AI system.
 
 ### Behaviour Rules
 1. If `is_interchange = True` → never broadcast dispatch signal
@@ -139,9 +114,9 @@ Operate along its assigned corridor. Receive demand signals from Stop Agents on 
 
 ### ⚠️ The Stranded Passenger Problem
 
-Early departure means a student who planned to catch a bus at its scheduled time may miss it. This is a real operational problem. The Bus Agent addresses it through a strict intervention hierarchy — early departure is the last resort, not the first response.
+Early departure means a student who planned to catch a bus at its scheduled time may miss it. The Bus Agent addresses it through a strict intervention hierarchy — early departure is the last resort, not the first response.
 
-### Timing Intervention Hierarchy
+### Timing Intervention Hierarchy (Corrected — Two Interventions, Not Three)
 
 When a HIGH/CRITICAL demand signal is received from a stop on this bus's corridor:
 
@@ -160,13 +135,7 @@ Already claimed by another bus on this corridor? → YES: ignore
 
 STEP 5: Evaluate which intervention is appropriate
 
-  IF bus is COMMUTING and demand stop is upcoming on route:
-    → Try ARRIVAL COMPRESSION first (preferred)
-    → Reduce dwell time at intermediate stops
-    → No stranded passenger risk — bus is already en route
-    → Claim, compress, log
-
-  ELSE IF bus is COMMUTING and running ahead of schedule:
+  IF bus is COMMUTING and running ahead of schedule:
     → Try HOLD at current stop
     → hold_minutes = schedule_deviation (max 5 min)
     → Check manifest: would hold delay any passenger past class start?
@@ -183,7 +152,11 @@ STEP 5: Evaluate which intervention is appropriate
       → YES: depart early, claim, log
 
   ELSE:
-    → No safe intervention available, log reason
+    → Bus is COMMUTING and on-time or behind schedule.
+    → No safe timing intervention exists for this case — a moving bus cannot
+      safely speed up between stops without altering the fixed route or
+      compressing dwell time below what boarding/alighting requires.
+    → Log "NO_INTERVENTION_AVAILABLE" with reason
     → Flag to dashboard if demand is CRITICAL and no intervention possible
 
 STEP 6: Insert extra trip flag
@@ -193,11 +166,13 @@ STEP 6: Insert extra trip flag
     → Cannot be auto-resolved by timing alone
 ```
 
+**Note on the removed third branch:** an earlier version of this hierarchy included "arrival compression" (reducing dwell time at intermediate stops) as the preferred intervention for a COMMUTING bus approaching a high-demand stop. This has been removed — see `00_MASTER_CONTEXT.md` for why. A COMMUTING, on-schedule bus with high demand ahead now correctly falls through to "no safe intervention available," which is logged and, if the demand is CRITICAL, surfaced to the fleet manager as a signal that an extra trip may be needed. This is an honest limitation of a fixed-schedule, no-reroute system — not something to paper over.
+
 ### Why This Hierarchy Solves the Stranded Passenger Problem
 
-- **Arrival compression** never changes when a bus departs — it just reduces dwell time en route. No student is waiting for a departure that moved.
 - **Hold** slows a bus that's running ahead — this actually helps students expecting the next bus, it doesn't hurt them.
 - **Early departure** is the only intervention that moves a scheduled departure time. It is the last resort, bounded to 8 minutes max, and requires a 15-minute headway gap. A student planning to catch a 7:20 bus who arrives at 7:16 is stranded only if the gap was large enough to justify departure — meaning the next bus behind them is at minimum 15 minutes away, not 4 minutes.
+- **No intervention** is the honest outcome when a bus is already moving on-time — it doesn't manufacture a false sense of control over a lever that doesn't actually exist.
 
 ### Constraint Code
 
@@ -239,7 +214,7 @@ IDLE → COMMUTING → BOARDING → RECALCULATING → COMMUTING
 ```
 
 - **IDLE:** At terminus, waiting for next scheduled departure. Can evaluate early departure.
-- **COMMUTING:** Moving between stops on corridor. Can evaluate arrival compression or hold.
+- **COMMUTING:** Moving between stops on corridor. Can evaluate hold (if ahead of schedule); otherwise no intervention is available while COMMUTING.
 - **BOARDING:** Stopped at stop, passengers boarding/alighting.
 - **RECALCULATING:** Evaluating intervention. Must resolve within 5 seconds or force back to COMMUTING.
 
@@ -257,14 +232,14 @@ current_load: int
 max_capacity: int                 # 28
 status: enum[IDLE, COMMUTING, BOARDING, RECALCULATING]
 manifest: list[Passenger]
-previous_bus_departure_time: datetime  # for headway gap calculation
+previous_bus_departure_time: datetime
 ```
 
 ### Utility Score
 ```
 utility = (queue_count / 40) × (1 - intervention_cost / max_acceptable_cost)
 ```
-Threshold: 0.6. Below this, intervention not worth the disruption.
+Threshold: 0.6. Below this, intervention not worth the disruption. Applies to Hold and Early Departure evaluations only.
 
 ---
 
@@ -274,7 +249,7 @@ Threshold: 0.6. Below this, intervention not worth the disruption.
 |---|---|---|---|
 | `stops/{id}/state` | Stop Agent | Bus Agents (own corridor), Dashboard | stop_id, corridor_id, queue_count, demand_level, is_claimed, app_count, sim_count |
 | `buses/{id}/state` | Bus Agent | Dashboard, Student App backend | bus_id, corridor_id, position, next_stop, load, status, scheduled_dep, actual_dep, delta_minutes |
-| `tasks/{stop_id}/claim` | Bus Agent | All agents | bus_id, corridor_id, stop_id, action, intervention_type, timestamp |
+| `tasks/{stop_id}/claim` | Bus Agent | All agents | bus_id, corridor_id, stop_id, action, intervention_type (`hold` \| `early_departure`), timestamp |
 | `system/log` | All agents | Dashboard | agent_id, event_type, message, constraints_checked, timestamp |
 | `admin/override` | Dashboard | Specific Bus Agent | bus_id, new_route_vector |
 | `demand/signal` | Student App backend | Stop Agents | stop_id, corridor_id, destination, student_token (anonymous) |
@@ -286,14 +261,14 @@ Threshold: 0.6. Below this, intervention not worth the disruption.
 
 ---
 
-## Black Box Test Cases (Updated)
+## Black Box Test Cases (Updated — Compression Cases Removed/Replaced)
 
 | TC | Input | Expected | Notes |
 |---|---|---|---|
 | TC01 | Queue 35, load 10/28, time 08:46, bus IDLE at terminus, gap 20 min | Early departure accepted | Gap > 15 min threshold |
 | TC02 | Queue 35, load 25/28 | Ignored — capacity lock | |
 | TC03 | Queue 35, time 08:52 (within 12 min of 09:00) | Ignored — protected zone | |
-| TC04 | Bus COMMUTING, hold would delay manifest passenger past class | Hold rejected — manifest protection | |
+| TC04 | Bus COMMUTING, hold would delay manifest passenger past class start | Hold rejected — manifest protection | |
 | TC05 | Two buses same corridor receive same CRITICAL broadcast | Only first claims | Claim lock |
 | TC06 | MQTT broker disconnects | All buses revert to fixed schedule within 10s | Graceful degradation |
 | TC07 | Queue = 3 (LOW) | No broadcast | |
@@ -306,6 +281,7 @@ Threshold: 0.6. Below this, intervention not worth the disruption.
 | TC14 | 12 app users at KDOJ Bus E, adoption rate 30% | Queue estimated as 12/0.3 = 40 | Adoption scaling |
 | TC15 | Same session token submits demand signal twice within 30 min | Second signal silently ignored, queue count unchanged | Token rate limit |
 | TC16 | 80 demand signals received at KDOJ at 2pm Saturday (no classes scheduled, expected = 5) | Plausibility filter rejects count, DEMAND_SIGNAL_REJECTED logged, no dispatch triggered | Plausibility filter |
+| TC17 *(new)* | Bus COMMUTING, on-schedule (delta = 0), queue CRITICAL at upcoming stop | No intervention triggered, `NO_INTERVENTION_AVAILABLE` logged, dashboard alert if CRITICAL persists 3+ broadcasts | Replaces the old compression test case (was TC in the PSM1 thesis: "Bus Agent selects arrival compression when COMMUTING") |
 
 ---
 
@@ -316,3 +292,4 @@ Threshold: 0.6. Below this, intervention not worth the disruption.
 - **Cross-corridor response:** Corridor filter is the first check — fail fast.
 - **Double response:** Check claim topic before publishing own claim.
 - **RECALCULATING stuck:** 5-second timeout, always resolves to COMMUTING.
+- **Reintroducing arrival compression:** Do not add it back as an intervention type, in code, in the dashboard's decision log copy, or in student-app messaging (e.g. "bus sped up for you"). It is not a real lever in this system. If a demand scenario needs a bigger ETA swing than Hold or Early Departure can realistically produce, that's a sign the scenario needs an idle/terminus bus or a genuinely-ahead-of-schedule bus — not a justification for compression.

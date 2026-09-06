@@ -98,3 +98,107 @@ This sequence is the entire point of the prototype. It must be smooth.
 - No multiple demo scenarios (only the KDOJ → Bus E scenario needs to work)
 - No analytics or tracking
 - No service worker / offline caching (basic PWA meta tags only)
+
+For Fleet Dashboard
+# AGENTS.md — ORBIT Fleet Dashboard Build Instructions
+
+Read this file first. Then read all files in `/dashboard_context_modules/` in order (00 through 05). Do not write any code until you have read all of them.
+
+---
+
+## Your job
+
+Build a hardcoded React frontend for the ORBIT Fleet Manager Dashboard. This is a desktop-only, single-page application. No backend. No API calls. All data is hardcoded. All state changes are driven by the user pressing ← or → on the demo control.
+
+---
+
+## Context modules — load all before building
+
+| File | Read for |
+|---|---|
+| `dashboard_context_modules/00_DASHBOARD_OVERVIEW.md` | Tech stack, folder structure, layout overview |
+| `dashboard_context_modules/01_DASHBOARD_LAYOUT.md` | Panel dimensions, column structure, demo control position |
+| `dashboard_context_modules/02_DASHBOARD_MOCK_DATA.md` | All hardcoded data — copy exactly into mockData.js |
+| `dashboard_context_modules/03_DASHBOARD_COMPONENTS.md` | Every component: props, layout, exact behavior |
+| `dashboard_context_modules/04_DASHBOARD_DEMO_SEQUENCE.md` | 10-step demo sequence, what updates at each step |
+| `dashboard_context_modules/05_DASHBOARD_DESIGN.md` | All colors, typography, spacing, animations |
+
+---
+
+## Build order
+
+Build in this exact order. Verify each step renders before moving to the next.
+
+1. **Project scaffold** — Vite + React + Tailwind. Confirm `npm run dev` works.
+2. **Design tokens** — `src/design/tokens.js` with all colors from `05_DASHBOARD_DESIGN.md`.
+3. **Mock data** — `src/data/mockData.js` with all exports from `02_DASHBOARD_MOCK_DATA.md`. Copy exactly.
+4. **useDashboard hook** — implement `deriveState()` and the hook as specified in `03_DASHBOARD_COMPONENTS.md`. Test that `deriveState(0)` returns initial state and `deriveState(9)` returns final state correctly.
+5. **CapBar** — shared utility, build and verify.
+6. **BusCard** — build and verify all four rows render correctly. Verify Override button hover works.
+7. **StopCard** — build and verify. Verify the 38px queue number, demand pill, and padlock icon.
+8. **LogEntry** — build fully expanded (no toggle). Verify constraint chips render. Verify timestamps.
+9. **OverrideModal** — build and verify it renders/hides based on prop. Verify MQTT topic mention in warning box.
+10. **DemoControl** — build expanded and collapsed states. Verify ← is disabled at step 0, → is disabled at last step.
+11. **Header** — build with status pills. Verify counts derive from buses and logs arrays.
+12. **App.jsx** — wire all panels, useDashboard hook, OverrideModal state, three-column layout.
+13. **vercel.json** — add SPA rewrite rule.
+14. **End-to-end test** — step through all 10 steps manually. Verify every bus and stop card update. Verify every log entry appears. Verify ← steps back correctly. Verify override logs an entry.
+
+---
+
+## Non-negotiable rules
+
+1. **All 10 steps must work perfectly in both forward and backward directions.** Test stepping forward to step 9 and then backward to step 0 — state must match the initial state exactly.
+2. **State is always derived by replaying from scratch.** Do not accumulate diffs. Use `deriveState(step)` on every navigation.
+3. **Log entries start fully expanded.** No collapsed state. No toggle button.
+4. **Buses are grouped by corridor in the left panel.** Order: Corridor E → Corridor B → Corridor F.
+5. **The queue count number in StopCard is 38px weight 900.** This is the primary visual. Do not reduce its size.
+6. **CRITICAL demand cards have a pulsing dot.** Use the CSS keyframe animation from `05_DASHBOARD_DESIGN.md`.
+7. **Override modal mentions the MQTT topic `admin/override` by name.** This is important for the presentation.
+8. **Desktop only.** No responsive breakpoints. Minimum width assumed: 1024px.
+9. **No hardcoded colors or sizes in components.** All from tokens.js and mockData.js.
+10. **Do not add features not listed.** No charts, no maps, no real-time connections, no auto-play, no routing.
+
+---
+
+## The sequence that must work perfectly
+
+```
+Step 0: Initial state
+  → E1 COMMUTING, E2 IDLE, B1/B3 COMMUTING, B2 IDLE, F1 COMMUTING
+  → KDOJ: queue 8, MEDIUM | KLG: 4 LOW | KDSE: 3 LOW | KP: 6 MEDIUM | K9/10: 2 LOW | KTR: 5 MEDIUM
+  → Logs: empty
+
+Step 1: KDOJ queue → 18, level → HIGH
+
+Step 2: KDOJ queue → 34, level → CRITICAL (border turns red, dot pulses)
+
+Step 3: Log entry STOP_KDOJ_E CRITICAL_BROADCAST appears
+
+Step 4: Bus E2 → RECALCULATING (card border turns amber). Log: BUS_E2 EVALUATING
+
+Step 5: Log: BUS_E2 CONSTRAINTS_CHECKED with 6 green chips
+
+Step 6: Bus E2 → COMMUTING, position "En route → KDOJ", delta -7 (green badge). Log: EARLY_DEPARTURE_ACCEPTED
+
+Step 7: KDOJ claimed → true (padlock appears). Log: CLAIM_PUBLISHED
+
+Step 8: Log: BUS_E1 CLAIM_CHECK_FAIL (grey muted entry)
+
+Step 9: Bus E2 → BOARDING, position "KDOJ". KDOJ queue → 4, LOW, unclaimed, lastBus → 0. Log: BOARDING_AT_KDOJ
+
+← from step 9 → step 8: Bus E2 back to COMMUTING "En route → KDOJ". KDOJ back to CRITICAL claimed.
+← from step 1 → step 0: All state back to initial. Logs empty.
+```
+
+---
+
+## What NOT to build
+
+- No student-facing PWA screens
+- No map or chart visualization
+- No real-time data connections
+- No auto-play demo sequence
+- No authentication
+- No mobile layout
+- No multiple demo scenarios
