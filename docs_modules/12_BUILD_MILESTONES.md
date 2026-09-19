@@ -211,6 +211,7 @@ scenario can be checked against actual agent behavior instead of invented number
 - [ ] Redesign PWA flagship demo scenario around Hold or Early Departure (not compression)
 - [ ] Redesign Dashboard's 10-step replay scenario — same corrected scenario, kept consistent with PWA
 - [ ] Search both repos for "compression" / "ARRIVAL_COMPRESSION" — zero remaining references
+- [ ] Note: grepping for "compression" alone won't find the prototype behavior — the word doesn't appear in `src/` or `dashboard/` source code (confirmed Sept 2026). Search for the actual symptom instead: the hardcoded "14 min → 7 min" ETA numbers/strings and the demo scenario logic that produces them
 - [ ] Update decision-log copy to use `HOLD_ACCEPTED` / `EARLY_DEPARTURE_ACCEPTED` / `NO_INTERVENTION_AVAILABLE`
 
 **Testing Session:** — (prototype/demo content, not backend logic; existing `npm test`/`npm run build` validation applies instead)
