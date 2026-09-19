@@ -1,7 +1,7 @@
 # Module 10 — ORBIT Prototype Status (Student PWA + Fleet Dashboard)
 > New module, July 2026. Documents the actual state of the two frontends already built in
 > `github.com/SamyAridhan/ORBIT`, based on a direct review of the repo (`context_modules/`,
-> `context_modules_2/`, `AGENTS.md`, `AGENTS_DASHBOARD.md`, and the `src/`/`dashboard/` folders).
+> `dashboard_context_modules/`, `AGENTS.md`, `AGENTS_DASHBOARD.md`, and the `src/`/`dashboard/` folders).
 > Load this before touching either frontend.
 
 ---
@@ -13,7 +13,7 @@ ORBIT/
 ├── AGENTS.md                  # Student PWA build brief
 ├── AGENTS_DASHBOARD.md        # Dashboard build brief
 ├── context_modules/           # Student PWA design context (00–06)
-├── context_modules_2/         # Dashboard design context (00–05)
+├── dashboard_context_modules/  # Dashboard design context (00–05)
 ├── src/                       # Student PWA source (React 18 + Vite + Tailwind)
 ├── dashboard/                 # Dashboard source, separate Vite app/Vercel project
 ├── public/, assets/           # PWA icons, manifest, Busloader animation

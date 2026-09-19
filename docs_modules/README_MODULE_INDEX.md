@@ -46,5 +46,5 @@ Spot-checked directly against the finalized, submitted 311-page thesis PDF rathe
 ## What Wasn't Touched (By Your Instruction)
 
 - The actual thesis PDF — not edited.
-- The GitHub repo (`AGENTS.md`, `AGENTS_DASHBOARD.md`, `context_modules/`, `context_modules_2/`, `src/`, `dashboard/`) — not edited. `10_PROTOTYPE_STATUS.md` documents its state but makes no changes to it.
+- The GitHub repo (`AGENTS.md`, `AGENTS_DASHBOARD.md`, `context_modules/`, `dashboard_context_modules/`, `src/`, `dashboard/`) — not edited. `10_PROTOTYPE_STATUS.md` documents its state but makes no changes to it.
 - `02`, `03`, `06`, `07`, `08`, `09` — reviewed and confirmed accurate, left as the originals since no correction was needed. If you want their file headers refreshed to match the new "PSM1 complete, sembreak" framing purely for consistency (no content change), say so and I'll do a quick pass — didn't do it by default since it's cosmetic and these files weren't otherwise broken.

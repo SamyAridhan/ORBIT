@@ -77,16 +77,23 @@ Backend run commands are not available yet. They should be added when the backen
 
 ## Documentation
 
-Current frontend build briefs and project references:
+Build briefs (one per project area):
 
 ```txt
-context_modules/
-dashboard_context_modules/
-docs_modules/
+AGENTS.md                   # Student PWA build brief
+AGENTS_DASHBOARD.md         # Fleet dashboard build brief
+AGENTS_BACKEND.md           # MAS backend build brief
+BLOCK_0_GUIDE.md            # Block 0 task guide for backend setup
 ```
 
-Retired documentation is kept under:
+Design context modules:
 
 ```txt
-docs_modules/_retired/
+context_modules/            # Student PWA design context
+dashboard_context_modules/  # Dashboard design context
+docs_modules/               # Project-wide design docs (00–12 + archive)
+docs_modules/_retired/      # Superseded modules
 ```
+
+Claude Code auto-loads `CLAUDE.md` at the repo root and `backend/CLAUDE.md` when working in
+the backend directory.

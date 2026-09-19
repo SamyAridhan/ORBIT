@@ -114,7 +114,7 @@ ORBIT/                          # single repo, root
 ├── AGENTS_DASHBOARD.md         # Dashboard build brief — NOT backend's concern
 ├── AGENTS_BACKEND.md           # THIS FILE — backend's brief
 ├── context_modules/            # Student PWA design context (00–06)
-├── context_modules_2/          # Dashboard design context (00–05)
+├── dashboard_context_modules/   # Dashboard design context (00–05)
 ├── docs_modules/                # Mirror of the 00–12 + ARCHIVE context modules
 │                                # (project-wide design docs — read, don't edit, unless a
 │                                #  task explicitly says a module needs updating)
