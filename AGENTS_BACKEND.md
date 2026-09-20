@@ -304,3 +304,44 @@ of a larger set of design documents. If a task requires detail this file doesn't
 topic schema, full demand simulation logic, the complete black-box test case list, etc.), say so
 in your report rather than guessing — the full modules (`01_AGENT_DESIGN.md` through
 `12_BUILD_MILESTONES.md`) exist and can be provided.
+
+---
+
+## 11. Chatty/Coddy Context Sync Protocol
+
+**This is a standing protocol for every session, not a one-off.** Read it and honor it.
+
+**Roles:**
+- **Coddy** = Claude Code (the execution side — me). Works directly on local disk in this repo,
+  runs the terminal, sees real command output and errors.
+- **Chatty** = the claude.ai Project chat (the design-context + review side). Holds the full
+  design history across many conversations, but **cannot read this disk**. Chatty only ever sees
+  a `docs_modules/` file when Samy **manually uploads** it into the claude.ai Project Knowledge.
+
+**The hard constraint:** any change Coddy makes to a `docs_modules/*.md` file does **not** reach
+Chatty automatically. There is no sync automation — it is a manual drag-and-drop re-upload by
+Samy. If Samy forgets, Chatty reviews against a stale copy and the two sides silently drift apart.
+
+**The rule:** whenever a session modifies **any** file under `docs_modules/`, that session
+**MUST** end with an explicit `CONTEXT SYNC REQUIRED` notice to Samy, in this format:
+
+```
+===== CONTEXT SYNC REQUIRED =====
+Re-upload these files into the claude.ai Project (Chatty), then tell Chatty what changed:
+  - <filename> — <one-line summary of change>
+  - <filename> — <one-line summary of change>
+If a file below was already re-uploaded in a previous session, skip it.
+=================================
+```
+
+The notice must list: (a) each `docs_modules/*.md` file changed this session, (b) a one-line
+summary of what changed in each, and (c) the explicit instruction — shown above — for Samy to
+re-upload exactly those files into claude.ai Project Knowledge and tell Chatty what changed.
+
+**If NO `docs_modules/*.md` file was changed in a session,** the session must still say so
+explicitly — `No context sync required — no docs_modules files modified.` — so the absence is a
+deliberate, verified statement rather than a forgotten step.
+
+Coddy cannot determine what Samy last uploaded to Chatty (the repo holds no synced-point marker).
+If the last-synced point is genuinely ambiguous, say so and list all `docs_modules/*.md` modified
+in the recent commits so Samy can decide — do not silently guess a sync baseline.
