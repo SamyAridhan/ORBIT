@@ -234,16 +234,22 @@ def get_eta(G: nx.DiGraph, source: str, target: str) -> float:
 from simulation.campus_graph import build_corridor_e_graph, get_eta
 
 G = build_corridor_e_graph()
-eta = get_eta(G, "kdoj", "cluster_t02")
+eta = get_eta(G, "kdoj", "cluster_t08")
 assert eta == 26, f"Expected 26, got {eta}"
-print(f"KDOJ -> Cluster T02: {eta} minutes")
+print(f"KDOJ -> Cluster T08: {eta} minutes")
 ```
 
-**Expected output:** `KDOJ -> Cluster T02: 26 minutes`
+**Expected output:** `KDOJ -> Cluster T08: 26 minutes`
 
-Hand-check: KDOJ→KLG(3) + KLG→KDSE(3) + KDSE→PKU(4) + PKU→CP(5) + CP→N24(4) + N24→KTC(3) +
-KTC→ClusterT02(4) = **26**. If your output doesn't match, the bug is almost certainly in the
-edge list from Task 3, not in Dijkstra itself — check there first.
+Hand-check: KDOJ→KLG(3) + KLG→KDSE(3) + KDSE→CP(6) + CP→N24(4) + N24→KTC(3) +
+KTC→ClusterT02(4) + ClusterT02→ClusterT08(3) = **26**. If your output doesn't match, the bug is
+almost certainly in the edge list from Task 3, not in Dijkstra itself — check there first.
+
+> **Corridor E correction (Sep 2026):** this verification originally targeted
+> `kdoj -> cluster_t02` and asserted `26`. After PKU was removed from Corridor E (it was a Bus D
+> stop; see `02_GRAPH_AND_SIMULATION.md`), `kdoj -> cluster_t02` is now **23** (six edges:
+> 3+3+6+4+3+4). The full corridor `kdoj -> cluster_t08` is what equals 26. The old assertion is
+> stale — use the target above.
 
 **Report if:** the assertion fails after checking the edge list — this is exactly the kind of
 "verification fails twice" case that should be reported rather than worked around.

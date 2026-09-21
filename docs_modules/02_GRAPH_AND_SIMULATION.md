@@ -1,5 +1,9 @@
 # Module 02 — ORBIT Campus Graph & Demand Simulation
 > Updated May 2026: Graph nodes use real UTM stop names from official schedule.
+> Corrected Sep 2026: Corridor E — removed PKU (a Bus D stop copied into E by mistake),
+> confirmed against the official UTM Fleet Bus E driver sheets (E1/E3/E5). KDSE → CP is now a
+> single 6 min placeholder segment. See "Corridor E correction (Sep 2026)" under the base
+> travel-time table.
 > PSM2 evaluation approach: software-in-the-loop simulation. Virtual data injector documented.
 > System name: ORBIT (On-Demand, Route-Based Intelligent Transit System)
 
@@ -29,11 +33,13 @@ B_STOPS = ["kolej_perdana", "kolej_9_10", "cluster_t02", "cluster_t04",
 C_STOPS = ["kolej_9_10", "ktc", "cp", "jalan_amal"]
 
 # Corridor D: KDOJ ↔ KLG ↔ KDSE ↔ PKU ↔ CP ↔ Jln Amal
+# PKU is legitimately a Bus D stop (per the shuttle map legend). Do NOT add it to Corridor E.
 D_STOPS = ["kdoj", "klg", "kdse", "pku", "cp", "jalan_amal"]
 
 # Corridor E: KDOJ/KLG/KDSE → Cluster via CP→N24→KTC
+# cluster_t06 is provisional / deferred for Block 0 (Sep 2026 Corridor E correction).
 E_STOPS = ["kdoj", "klg", "kdse", "cp", "n24", "ktc",
-           "cluster_t02", "cluster_t06", "cluster_t08"]
+           "cluster_t02", "cluster_t08"]
 
 # Corridor F: KTR → KTHO → KTDI → Jln Amal → CP
 F_STOPS = ["ktr", "ktho", "ktdi", "jalan_amal", "cp"]
@@ -65,12 +71,18 @@ These are estimates. Verify with Dr Sim or UTM Fleet, or drive/time the routes.
 |---|---|---|
 | KDOJ → KLG | 3 | one-way outbound |
 | KLG → KDSE | 3 | one-way outbound |
-| KDSE → PKU | 4 | one-way outbound |
-| PKU → CP | 5 | bidirectional |
+| KDSE → CP | 6 | bidirectional |
 | CP → N24 | 4 | one-way |
 | N24 → KTC | 3 | one-way |
 | KTC → Cluster T02 | 4 | one-way |
 | Cluster T02 → T08 | 3 | one-way loop |
+
+> **Corridor E correction (Sep 2026):** PKU was removed from this table — it was a Bus D stop
+> (`D_STOPS`) copied into Corridor E by mistake. The official UTM Fleet Bus E driver sheets
+> (E1/E3/E5) confirm Bus E runs KDOJ/KLG/KDSE → Cluster via CP → N24 → KTC with **no PKU stop**.
+> The former `KDSE → PKU (4)` + `PKU → CP (5)` = 9 min pair is replaced by a single direct
+> `KDSE → CP` segment. **6 min is a flagged placeholder** — deliberately less than the old 4+5=9
+> because there is no longer a PKU stop between KDSE and CP; verify with UTM Fleet / Dr Sim.
 
 **Corridor B (KP → Cluster):**
 
