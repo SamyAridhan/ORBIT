@@ -16,6 +16,7 @@ backend/venv/
 __pycache__/
 *.pyc
 *.db
+.pytest_cache/
 
 # Large demo video: kept on disk, no longer tracked as a source file.
 # Specific path only — the other three assets/ videos stay tracked.

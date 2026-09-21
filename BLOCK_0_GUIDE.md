@@ -113,7 +113,7 @@ import paho.mqtt.client as mqtt
 def on_message(client, userdata, msg):
     print(f"Received: {msg.topic} -> {msg.payload.decode()}")
 
-client = mqtt.Client()
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)  # paho-mqtt >= 2.0 requires this arg
 client.on_message = on_message
 client.connect("localhost", 1883)
 client.subscribe("orbit/test")
@@ -125,11 +125,23 @@ Create `backend/test_publish.py`:
 ```python
 import paho.mqtt.client as mqtt
 
-client = mqtt.Client()
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)  # paho-mqtt >= 2.0 requires this arg
 client.connect("localhost", 1883)
-client.publish("orbit/test", "hello from bus agent")
+client.loop_start()
+info = client.publish("orbit/test", "hello from bus agent")
+info.wait_for_publish()   # keep the network loop running so the QoS-0 message actually flushes
+client.loop_stop()
 client.disconnect()
 ```
+
+> **paho-mqtt version note (added after the Block 0 smoke test):** the original samples used the
+> paho-1.x style `mqtt.Client()` with no arguments. That **crashes on paho-mqtt >= 2.0**, which is
+> what `pip install paho-mqtt` gives you today — the constructor now requires an explicit
+> `CallbackAPIVersion`. Real MQTT code (`api/mqtt_bridge.py`, the virtual injector) should use
+> `CallbackAPIVersion.VERSION2` — do **not** start new code on the deprecated VERSION1 API.
+> Also note the publisher pattern above: a bare `connect → publish → disconnect` can silently drop
+> a QoS-0 message because the network loop never runs; keep the loop alive (`loop_start()` +
+> `info.wait_for_publish()`) for every real publish, not just this test.
 
 **Verification:**
 Run `test_subscribe.py` in one process, then `test_publish.py` in another while the first is
