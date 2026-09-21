@@ -29,7 +29,7 @@
 
 | Block | Status |
 |---|---|
-| 0 — Environment & Corridor E Graph | In progress — repo cleanup complete, backend scaffold created |
+| 0 — Environment & Corridor E Graph | Complete |
 | 1 — Stop Agent (Corridor E) | Not started |
 | 2 — Bus Agent: Constraint Hierarchy Steps 1–4 | Not started |
 | 3 — Bus Agent: Intervention Selection (Step 5) + Overflow Flag (Step 6) | Not started |
@@ -47,15 +47,15 @@
 
 Infra only — no rule logic yet, so no Testing Session needed for this block.
 
-- [ ] FastAPI skeleton running (`backend/api/main.py`, `uvicorn --reload`)
-- [ ] Mosquitto broker running locally, basic pub/sub smoke test
-- [ ] Corridor E graph built in NetworkX — nodes, directed edges, base travel times (`02_GRAPH_AND_SIMULATION.md`)
-- [ ] `get_eta()` Dijkstra function returns sane values for KDOJ→Cluster
+- [x] FastAPI skeleton running (`backend/api/main.py`, `uvicorn --reload`)
+- [x] Mosquitto broker running locally, basic pub/sub smoke test
+- [x] Corridor E graph built in NetworkX — nodes, directed edges, base travel times (`02_GRAPH_AND_SIMULATION.md`)
+- [x] `get_eta()` Dijkstra function returns sane values for KDOJ→Cluster
 - [x] Repo folder structure matches `03_DASHBOARD_AND_INTEGRATION.md`'s layout (backend/agents, simulation, api, config, tests scaffolded; context_modules_2 renamed to dashboard_context_modules; docs_modules/_retired created for superseded files)
 
 **Testing Session:** — (skip; nothing rule-based to mutate yet)
 
-**Status:** Repo cleanup pass complete (renamed context_modules_2 → dashboard_context_modules, retired 04_REPORT_WRITING_GUIDE.md + QnA_SUPERVISOR.md, backend/ folder scaffold created, README.md rewritten). Backend logic tasks (FastAPI, Mosquitto, graph, get_eta) not yet started — docs_modules/ needed syncing first (this file's delivery resolves that).
+**Status:** Block 0 COMPLETE. FastAPI skeleton running (`backend/api/main.py`, commit `3cfcf57`); Mosquitto pub/sub verified end-to-end (broker + paho-mqtt smoke test, throwaway scripts removed); Corridor E graph rebuilt against the official UTM Fleet Bus E driver sheets (E1/E3/E5) — 8 nodes / 7 edges, PKU removed as a Bus-D-only stop, `kdse→cp=6` placeholder; `get_eta()` Dijkstra verified `kdoj→cluster_t08=26` (10 pytest cases green) — graph + get_eta in commit `fa3c144`. `cluster_t06` deferred/provisional. Repo cleanup pass (context_modules_2 → dashboard_context_modules, retired 04_REPORT_WRITING_GUIDE.md + QnA_SUPERVISOR.md, backend/ scaffold, README.md rewrite) done earlier. Next: Block 1 (Stop Agent).
 
 ---
 
