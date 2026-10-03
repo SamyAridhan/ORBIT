@@ -16,6 +16,8 @@ from agents.stop_agent import (
     DemandLevel,
     classify_demand,
     decide_broadcast,
+    evaluate_broadcast,
+    is_interchange_stop,
 )
 
 # ---------------------------------------------------------------------------
@@ -164,4 +166,76 @@ def test_decision_consumes_levels_from_classifier():
 def test_returns_broadcast_decision_type():
     assert isinstance(
         decide_broadcast(DemandLevel.LOW, None, T0, None), BroadcastDecision
+    )
+
+
+# ---------------------------------------------------------------------------
+# Task 3 — interchange suppression (is_interchange guard)
+# ---------------------------------------------------------------------------
+
+
+def test_cp_and_jalan_amal_are_interchange():
+    # CP and Jalan Amal are the dispatch-suppression interchanges (01 Behaviour Rule 1).
+    assert is_interchange_stop("cp") is True
+    assert is_interchange_stop("jalan_amal") is True
+
+
+def test_interchange_lookup_is_case_insensitive():
+    assert is_interchange_stop("CP") is True
+    assert is_interchange_stop("Jalan_Amal") is True
+
+
+def test_non_interchange_and_graph_shared_nodes_are_not_suppressed():
+    # Origin/cluster stops dispatch normally...
+    assert is_interchange_stop("kdoj") is False
+    assert is_interchange_stop("kdse") is False
+    assert is_interchange_stop("cluster_t08") is False
+    # ...and n24/ktc are module-02 graph shared nodes, NOT dispatch-suppressed stops.
+    assert is_interchange_stop("n24") is False
+    assert is_interchange_stop("ktc") is False
+
+
+@pytest.mark.parametrize(
+    "level",
+    [DemandLevel.LOW, DemandLevel.MEDIUM, DemandLevel.HIGH, DemandLevel.CRITICAL],
+)
+def test_interchange_never_broadcasts_at_any_level(level):
+    # A changed level and a recent broadcast — conditions under which a normal stop
+    # WOULD broadcast at MEDIUM+; the interchange guard must suppress all of them.
+    d = evaluate_broadcast(True, level, DemandLevel.LOW, T0, RECENT)
+    assert d.should_broadcast is False
+    assert d.priority is False
+    assert d.is_keepalive is False
+
+
+def test_interchange_slammed_critical_stays_silent():
+    # The important case: a CRITICAL queue at CP still broadcasts nothing.
+    d = evaluate_broadcast(True, DemandLevel.CRITICAL, DemandLevel.CRITICAL, T0, RECENT)
+    assert d.should_broadcast is False
+    assert d.priority is False
+
+
+def test_interchange_keepalive_does_not_fire():
+    # Sustained HIGH/CRITICAL with >30s elapsed would arm the keepalive on a normal
+    # stop; an interchange stop emits nothing, not even the heartbeat.
+    assert evaluate_broadcast(True, DemandLevel.HIGH, DemandLevel.HIGH, T0, STALE).should_broadcast is False
+    assert evaluate_broadcast(True, DemandLevel.HIGH, DemandLevel.HIGH, T0, STALE).is_keepalive is False
+    assert evaluate_broadcast(True, DemandLevel.CRITICAL, DemandLevel.CRITICAL, T0, STALE).should_broadcast is False
+
+
+@pytest.mark.parametrize(
+    "level, prev, last",
+    [
+        (DemandLevel.LOW, DemandLevel.HIGH, RECENT),
+        (DemandLevel.MEDIUM, DemandLevel.LOW, None),
+        (DemandLevel.MEDIUM, DemandLevel.MEDIUM, RECENT),
+        (DemandLevel.HIGH, DemandLevel.HIGH, RECENT),
+        (DemandLevel.HIGH, DemandLevel.HIGH, STALE),
+        (DemandLevel.CRITICAL, DemandLevel.CRITICAL, RECENT),
+    ],
+)
+def test_non_interchange_unchanged_from_task2(level, prev, last):
+    # is_interchange=False must reproduce decide_broadcast exactly (Task 2 preserved).
+    assert evaluate_broadcast(False, level, prev, T0, last) == decide_broadcast(
+        level, prev, T0, last
     )

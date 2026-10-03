@@ -3,10 +3,11 @@
 Block 1 progress:
   Task 1 (TC07) — demand-level classifier: classify_demand + DemandLevel.
   Task 2        — per-tick broadcast decision: decide_broadcast + BroadcastDecision.
+  Task 3        — interchange suppression: evaluate_broadcast + is_interchange_stop.
 
 Still NOT in this module (later Block 1 tasks): the actual MQTT publish/wiring,
-interchange suppression (Task 3), adoption scaling (Tasks 4-5), token rate-limiting
-(Task 6), the plausibility filter (Task 7), and is_claimed claim-suppression (Task 8).
+adoption scaling (Tasks 4-5), token rate-limiting (Task 6), the plausibility filter
+(Task 7), and is_claimed claim-suppression (Task 8).
 
 See `docs_modules/01_AGENT_DESIGN.md` → "Demand Classification" and "Behaviour Rules".
 """
@@ -158,4 +159,57 @@ def decide_broadcast(
         priority=priority,
         is_keepalive=keepalive_due,
         reason=reason,
+    )
+
+
+#: Stops that are dispatch-suppression interchanges: waypoints only, never emit a
+#: demand/dispatch broadcast (01_AGENT_DESIGN.md Behaviour Rule 1 + Common Pitfalls;
+#: a project-wide non-negotiable per 00_MASTER_CONTEXT.md). This is NOT the same set
+#: as module 02's graph-level ``INTERCHANGE_NODES`` (which also lists n24/ktc as shared
+#: routing nodes): those still dispatch; only CP and Jalan Amal are silenced here.
+INTERCHANGE_STOP_IDS = frozenset({"cp", "jalan_amal"})
+
+
+def is_interchange_stop(stop_id: str) -> bool:
+    """Whether ``stop_id`` is a dispatch-suppression interchange (CP / Jalan Amal).
+
+    Keys off the canonical stop id (case-insensitive), not a per-call flag, so the
+    set stays in one place. See :data:`INTERCHANGE_STOP_IDS`.
+    """
+    return stop_id.lower() in INTERCHANGE_STOP_IDS
+
+
+def evaluate_broadcast(
+    is_interchange: bool,
+    current_level: DemandLevel,
+    previous_level: DemandLevel | None,
+    now: datetime,
+    last_broadcast_time: datetime | None,
+    keepalive_interval: timedelta = KEEPALIVE_INTERVAL,
+) -> BroadcastDecision:
+    """Broadcast-path entry point with the interchange guard. Implements Block 1 Task 3.
+
+    The ``is_interchange`` check is the OUTERMOST gate: when True, an interchange stop
+    (CP / Jalan Amal) returns no broadcast unconditionally and :func:`decide_broadcast`
+    is never called — classification level, the change-clause and the keepalive
+    heartbeat are all overridden. A CRITICAL queue at CP still broadcasts nothing, and
+    an interchange stop never emits a keepalive. This is dispatch suppression only; it
+    does not disable the stop's position tracking (handled elsewhere).
+
+    Wiring it as a short-circuit *before* the level/keepalive logic — rather than
+    "classify then suppress" — makes it impossible for later tasks to accidentally
+    route around the guard.
+
+    For a non-interchange stop the result is exactly :func:`decide_broadcast`'s
+    (Task 2 behaviour is unchanged).
+    """
+    if is_interchange:
+        return BroadcastDecision(
+            should_broadcast=False,
+            priority=False,
+            is_keepalive=False,
+            reason="interchange stop: dispatch suppressed (waypoint only)",
+        )
+    return decide_broadcast(
+        current_level, previous_level, now, last_broadcast_time, keepalive_interval
     )
