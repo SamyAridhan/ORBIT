@@ -1,10 +1,9 @@
 # Module 02 — ORBIT Campus Graph & Demand Simulation
 > Updated May 2026: Graph nodes use real UTM stop names from official schedule.
-> Corrected Sep 2026: Corridor E — removed PKU (a Bus D stop copied into E by mistake),
-> confirmed against the official UTM Fleet Bus E driver sheets (E1/E3/E5). KDSE → CP is now a
-> single 6 min placeholder segment. See "Corridor E correction (Sep 2026)" under the base
-> travel-time table.
 > PSM2 evaluation approach: software-in-the-loop simulation. Virtual data injector documented.
+> Updated Sep 2026: Corridor E corrected against the official UTM Fleet Bus E driver sheets
+> (E1/E3/E5) — PKU removed from Corridor E (it is a Bus D stop, not Bus E). See the note under
+> the Corridor E travel-time table.
 > System name: ORBIT (On-Demand, Route-Based Intelligent Transit System)
 
 ---
@@ -33,11 +32,16 @@ B_STOPS = ["kolej_perdana", "kolej_9_10", "cluster_t02", "cluster_t04",
 C_STOPS = ["kolej_9_10", "ktc", "cp", "jalan_amal"]
 
 # Corridor D: KDOJ ↔ KLG ↔ KDSE ↔ PKU ↔ CP ↔ Jln Amal
-# PKU is legitimately a Bus D stop (per the shuttle map legend). Do NOT add it to Corridor E.
+# NOTE: PKU (UTM Health Centre) is a Bus D stop, confirmed by the official shuttle
+# map legend (BAS D: KDOJ – KLG – KDSE – PKU – CP – JLN AMAL – KDOJ). It is NOT a
+# Bus E stop — do not add it to E_STOPS. Bus D and Bus E share the same origin
+# colleges (KDOJ/KLG/KDSE) but diverge after KDSE: D goes via PKU→CP→Jln Amal, E
+# goes direct KDSE→CP then on to the Cluster via N24→KTC.
 D_STOPS = ["kdoj", "klg", "kdse", "pku", "cp", "jalan_amal"]
 
-# Corridor E: KDOJ/KLG/KDSE → Cluster via CP→N24→KTC
-# cluster_t06 is provisional / deferred for Block 0 (Sep 2026 Corridor E correction).
+# Corridor E: KDOJ/KLG/KDSE → Cluster via CP→N24→KTC (NO PKU — see note below)
+# cluster_t06 is a provisional intermediate cluster stop ("if stopping — confirm
+# with UTM Fleet"); modeled as absent for the Block 0 graph (T02→T08 direct).
 E_STOPS = ["kdoj", "klg", "kdse", "cp", "n24", "ktc",
            "cluster_t02", "cluster_t08"]
 
@@ -51,7 +55,7 @@ G_STOPS = ["ktr", "ktho", "ktdi", "n24", "skt", "p19", "cp"]
 INTERCHANGE_NODES = ["cp", "jalan_amal", "n24", "ktc"]
 ```
 
-> **⚠️ Post Dr Sim meeting:** Verify exact stop sequence and one-way segments for each corridor. The above is based on the official schedule route descriptions — exact road topology needs ground-truth confirmation.
+> **⚠️ Post Dr Sim meeting:** Verify exact stop sequence and one-way segments for each corridor. The above is based on the official schedule route descriptions and the UTM Fleet driver-detail sheets — exact road topology (one-way segments in particular) still needs ground-truth confirmation. Corridor E's *stop sequence* is now confirmed against the official Bus E driver sheet; its *travel-time weights* remain estimates.
 
 ### Edge Weight Formula
 ```
@@ -77,12 +81,15 @@ These are estimates. Verify with Dr Sim or UTM Fleet, or drive/time the routes.
 | KTC → Cluster T02 | 4 | one-way |
 | Cluster T02 → T08 | 3 | one-way loop |
 
-> **Corridor E correction (Sep 2026):** PKU was removed from this table — it was a Bus D stop
-> (`D_STOPS`) copied into Corridor E by mistake. The official UTM Fleet Bus E driver sheets
-> (E1/E3/E5) confirm Bus E runs KDOJ/KLG/KDSE → Cluster via CP → N24 → KTC with **no PKU stop**.
-> The former `KDSE → PKU (4)` + `PKU → CP (5)` = 9 min pair is replaced by a single direct
-> `KDSE → CP` segment. **6 min is a flagged placeholder** — deliberately less than the old 4+5=9
-> because there is no longer a PKU stop between KDSE and CP; verify with UTM Fleet / Dr Sim.
+> **Corridor E correction (Sep 2026):** An earlier version of this table routed Corridor E
+> as `KDSE → PKU (4) → CP (5)`, mistakenly copying **Bus D's** path (D goes via PKU). The
+> official UTM Fleet Bus E driver sheets (E1/E3/E5) all state the route as
+> **KDOJ/KLG/KDSE → CLUSTER via CP – N24 – KTC**, with no PKU — KDSE connects directly to CP.
+> The two PKU rows have been replaced with a single `KDSE → CP` segment. Its weight (6 min) is
+> a **placeholder** pending Dr Sim / UTM Fleet confirmation, like every other value in this
+> table — it is deliberately less than the old two-hop 4+5=9 total because that total included
+> a passenger stop at PKU that no longer occurs. Total KDOJ→Cluster (T02) under this table:
+> 3+3+6+4+3+4 = 23 min to T02, +3 to T08 = **26 min** end-to-end.
 
 **Corridor B (KP → Cluster):**
 
