@@ -107,8 +107,11 @@ A web app cannot check location while it is closed. If the app is closed during 
 ### 5. Did you get on?
 - Shown when the student has the app open, or opens it, after their bus has left the stop. A web push notification is a bonus where the phone allows it, not something to rely on.
 - **[I'm on]** — removed from the count. Optionally: "How full is it?" (plenty of room / fairly full / full).
-- **[Still waiting]** — stays in the count and is marked as left behind. This is one of the two things that confirm an overflow.
-- **No answer = got on.** (Locked.)
+- **[Still waiting]** — stays in the count and is marked as left behind by the bus that just went.
+  - **A late tap always counts.** Ali taps at 7:25 and pockets his phone. The 7:30 leaves full; ORBIT assumes he boarded. At 7:35 he taps "Still waiting" — ORBIT puts him back, as one person, left behind by the 7:30.
+  - If that bus left with empty seats, he simply missed it: he stays in the count and no spare is sent.
+  - (The Transit app does the same thing: when a departure has passed and the rider is still at the stop, it asks what happened.)
+- **No answer = got on.** (Locked.) One exception: if the door counter shows the bus left full and fewer people boarded than app users were waiting, ORBIT keeps the difference as still waiting — nobody has to tap.
 - One person is one person. There is no extra weight for a "still waiting" tap.
 
 ### 6. On board (optional)
@@ -134,8 +137,13 @@ A screen inside the same web app — not a separate app. The driver's phone or a
 
 **What the driver can tap, any time the bus is stopped:**
 - How full: about empty / half / full
-- "Left people behind"
 - On break / back
+
+**What the driver is asked:**
+- When the bus is full at a stop, the screen asks by itself: **"Did you have to turn people away at the door?" Yes / No / Not sure.**
+- The driver doesn't have to remember to report it, and it asks only what a driver knows for certain — he can't tell who at a stop is waiting for which bus, but he knows when he closed the doors on people.
+- "Not sure" or no answer means "unknown", never "nobody was left".
+- Why asked and not a button: where this depends on a driver remembering to press something, it gets under-used (Calgary Transit; `ORBIT_REAL_WORLD_PRECEDENTS.md` section 6).
 
 **What the driver receives:**
 - One big instruction with an alert sound (like a Grab job ping): extra trip, leave early, hold, or carry on as scheduled.
@@ -198,12 +206,12 @@ The question: with no login, what stops one person sending 50 signals?
 A signal is accepted only if the phone's coordinates are within the stop's geofence. The check runs on the server. A hundred signals for KDOJ sent from a dorm room all fail it. The reply never says why, so the check can't be probed.
 
 ### Layer B — one token, one signal
-The app holds an anonymous random token in the browser. One token gives one accepted signal per stop, per route, per 30 minutes. A repeat is ignored silently. A "still waiting" tap keeps the same person in the count; it doesn't add a second one. Clearing browser storage gives a new token — an accepted limit; the effort isn't realistic for a bus queue.
+The app holds an anonymous random token in the browser. One token gives one accepted "I'm waiting" signal per stop, per route, per 30 minutes. A repeat is ignored silently. "Still waiting" and "changed bus" are updates to the same person: always accepted, never a second count. Clearing browser storage gives a new token — an accepted limit; the effort isn't realistic for a bus queue.
 
 ### Layer C — strange counts are flagged, not blocked
 If the count at a stop looks implausible for that place and time (more than three times the schedule-based expectation; later, an Isolation Forest check), ORBIT **flags it on the dashboard and keeps it**. A flagged count triggers nothing on its own. If the driver or the door counter agrees — the bus really did fill — ORBIT believes it.
 
-*Example:* 40 signals at KDOJ at 2 pm on a Saturday. Flagged. If it's a prank, the bus arrives, doesn't fill, and nothing happens. If it's a real event, the bus leaves full, the driver taps "left people behind", and ORBIT acts.
+*Example:* 40 signals at KDOJ at 2 pm on a Saturday. Flagged. If it's a prank, the bus arrives, doesn't fill, and nothing happens. If it's a real event, the bus leaves full, the driver answers "Yes, I turned people away", and ORBIT acts.
 
 Why not block: a filter built on a model goes blind on exactly the days that matter — exams, events, rain.
 
@@ -306,7 +314,7 @@ src/
 │   ├── BoardedPrompt.jsx        # "Did you get on?"
 │   └── CrowdTap.jsx             # rider "how full"
 ├── driver/
-│   ├── DriverHome.jsx           # load taps, left behind, break
+│   ├── DriverHome.jsx           # load taps, break, the turned-away question
 │   └── InstructionScreen.jsx    # big instruction, sound, OK / Can't
 ├── hooks/
 │   ├── useGeolocation.js

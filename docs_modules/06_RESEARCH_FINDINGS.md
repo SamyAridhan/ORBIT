@@ -261,7 +261,7 @@ Unsupervised anomaly detection. Builds ensemble of isolation trees. No labelled 
 ## Part 11 — Real-World Precedents for the Current Design (Nov 2026)
 
 The design locked on 11 Nov 2026 was checked against how real transport systems work. The full
-evidence, with links, is in **`claude/ORBIT_REAL_WORLD_PRECEDENTS.md`** — read that file before
+evidence, with links, is in **`ORBIT_REAL_WORLD_PRECEDENTS.md`** — read that file before
 citing any of it. In short, it covers:
 
 - **Standby / spare buses** kept ready to fill a gap or answer a crowd (several North American agencies), and research showing that where to station them is usually decided without a formal method — the gap ORBIT's planning reports address.
@@ -340,5 +340,5 @@ and article summaries, not peer-reviewed unless noted — re-open a link before 
 | Al-Turjman et al. | 2019 | IoT in smart transportation |
 | PAJ / Sharul et al. | 2026 | UTM Smart Bus IoT-GPS project — closest related work, institutional context, remaining gap |
 | Bartholdi & Eisenstein | 2012 | Headway-based holding at a control point; campus trial with driver tablets |
-| Real-world precedents | various | Standby buses, shared pools, door counters, crowd levels — `claude/ORBIT_REAL_WORLD_PRECEDENTS.md` |
+| Real-world precedents | various | Standby buses, shared pools, door counters, crowd levels — `ORBIT_REAL_WORLD_PRECEDENTS.md` |
 | Adoption sources | various | Part 12 below |

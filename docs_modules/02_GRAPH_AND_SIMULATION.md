@@ -14,6 +14,8 @@
 ### What it is
 A directed, weighted graph of UTM Skudai's shuttle roads. Directed because some campus roads are one-way. Each edge carries a base travel time in minutes.
 
+The route map is real data, not simulation. From Block 0 it sits in `backend/simulation/campus_graph.py`; because agent code must not import from `simulation/`, moving it is on Block 2's list.
+
 The map is a set of route subgraphs, not one mesh. A Bus E bus only ever drives Bus E's path. **No rerouting.** A spare on an extra trip for Bus E drives Bus E's normal path.
 
 ```python
@@ -188,8 +190,12 @@ class VirtualInjector:
     def inject_door_count(self, bus_id, stop_id, boarded, alighted): ...
         # → the load interface a real door counter would use
 
-    def inject_driver_tap(self, bus_id, level=None, left_people_behind=False): ...
+    def inject_driver_tap(self, bus_id, level): ...
         # level: "empty" | "half" | "full"
+
+    def inject_turned_away_answer(self, bus_id, answer): ...
+        # the driver's answer to "Did you have to turn people away?"
+        # answer: "yes" | "no" | "not_sure" | None (no answer)
 
     def inject_driver_answer(self, bus_id, instruction_id, answer): ...
         # answer: "ok" | "cant" | None (no answer)
@@ -221,8 +227,8 @@ def simulate_stop_visit(bus, stop, sim_time):
     real_crowd[stop.id][bus.corridor_id] = left_behind
 
     if left_behind > 0:
-        if scenario.driver_taps:                       # how reliably drivers tap is a setting
-            injector.inject_driver_tap(bus.id, left_people_behind=True)
+        # the driver is asked "turned people away?"; how reliably drivers answer is a scenario setting
+        injector.inject_turned_away_answer(bus.id, scenario.driver_answer())   # "yes" / "not_sure" / None
         for person in app_users_among(left_behind, stop.app_share):
             injector.inject_demand_signal(stop.id, bus.corridor_id, person.destination,
                                           person.token, signal_type="still_waiting")
@@ -235,7 +241,7 @@ A left-behind person is one person. (The old "1.5× missed-bus weight" is retire
 
 Generates the real crowd per stop per tick from class-schedule patterns. Not random: it spikes 15–20 minutes before lectures, drops after a bus boards, varies by college size, and is flat and low on weekends.
 
-It has a second, smaller job: it gives ORBIT the schedule-based `expected` number for each stop and time (used for the dashboard and the strange-count check — never as a trigger, and not produced for CP or Jalan Amal).
+**The `expected` number is not the simulator's job.** ORBIT has its own schedule model for it (`backend/demand/`), from the class timetable at first and from ORBIT's own anonymous history later — it has to exist when the simulator is switched off. The two may read the same class-schedule patterns as data, but agent code never imports from `simulation/`. `expected` is used for the dashboard and the strange-count check — never as a trigger, and not produced for CP or Jalan Amal.
 
 ```python
 LECTURE_SLOTS_HOURS = [8, 9, 10, 11, 12, 14, 15, 16, 17]
@@ -278,7 +284,7 @@ SPEED_MULTIPLIER = 1      # 1×, 5×, 10×, or as fast as possible for the obser
 
 ## Scenario library
 
-The four old presets (`normal_day`, `peak_morning`, `exam_week`, `low_demand`) become a library. Each scenario sets the crowd, the app share, how reliably drivers tap, and any disruption.
+The four old presets (`normal_day`, `peak_morning`, `exam_week`, `low_demand`) become a library. Each scenario sets the crowd, the app share, how reliably drivers answer the turned-away question, which buses have door counters, and any disruption.
 
 | Scenario | What it shows |
 |---|---|
@@ -289,7 +295,9 @@ The four old presets (`normal_day`, `peak_morning`, `exam_week`, `low_demand`) b
 | Heavy rain | More riders everywhere at once — several routes want the spare |
 | Friday (12:40–14:00 gap), weekend, public holiday | Service-hour rules |
 | A messy day | A bus breaks down; a jam on one route; a driver says "Can't" |
-| Zero app users | ORBIT still works from driver taps and door counters |
+| Zero app users | ORBIT still works from the driver's "Yes, turned people away" |
+| Unsure drivers | Drivers answer "Not sure" or nothing — ORBIT falls back on door counts and student taps, and does nothing when it cannot know |
+| A late tap | A student left behind answers five minutes late — still counted, once |
 
 To build over time with Samy's campus knowledge: the academic calendar, recurring events, and habits like "everyone heads to KDOJ after the 5 pm class".
 

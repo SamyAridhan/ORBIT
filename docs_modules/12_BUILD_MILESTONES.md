@@ -18,7 +18,7 @@
 - Tick a box (`[ ]` → `[x]`) only when the commit is **confirmed on `origin`**: a session has run `git fetch` and `git cat-file -t <hash>` and seen it on the working branch. A hash in a Coddy report is "reported", not "confirmed". Keep the branch name next to the hash.
 - A block is not complete until its Testing Session is ticked too.
 - If a session stops mid-block, leave a one-line **Status** note under that block.
-- Test case numbers (TC101 …) are in `01_AGENT_DESIGN.md`. Requirement IDs (R1, S5 …) are in `claude/14_SYSTEM_REQUIREMENTS.md`.
+- Test case numbers (TC101 …) are in `01_AGENT_DESIGN.md`. Requirement IDs (R1, S5 …) are in `14_SYSTEM_REQUIREMENTS.md`.
 
 ---
 
@@ -26,14 +26,17 @@
 
 - Active branch: **`claude/funny-knuth-w6dibj`** on `origin` (`github.com/SamyAridhan/ORBIT`).
 - `main` is at **`8b005cc`** (Block 0 merged, 3 Oct 2026).
-- The working branch is ahead of `main` by the three Block 1 commits; tip reported as **`47262d8`**.
+- The working branch is ahead of `main`; tip reported as **`81b6e75`** (13 Nov 2026).
 - Always `git fetch origin` before trusting a local `git log`. Check out the working branch, not `main`, for Block 1+ commits. `main` gets a merge at each block end.
 
 ---
 
-## Before the build resumes
+## Build resumed — 13 Nov 2026
 
-- [ ] **Coddy catch-up.** Send `claude/CODDY_CATCHUP_BRIEF.md`. Coddy fetches, confirms `47262d8` is on origin, replaces `docs_modules/` with the 13 Nov module set, updates `CLAUDE.md` (root and `backend/`) where they state old rules, commits and pushes, and reports back before writing any code.
+- [x] **Coddy catch-up done.** Fetched; `709e7c9`, `2ae4c93`, `47262d8` confirmed on origin; `docs_modules/` replaced with the 13 Nov set (`132a9c9`); both `CLAUDE.md` files and `AGENTS_BACKEND.md` rewritten to the new design; catch-up brief saved in `docs_modules/` (`61f92ab`). All reported as pushed.
+- Old module versions were deleted, not moved to `_retired/` — git holds them at `47262d8`, and keeping July rule text greppable is the leak Trap 12 warns about.
+- **Python:** no pin in the repo. The suite has passed on 3.11.18 (Coddy's container) and 3.12.10 (Samy's local venv).
+- **Module refinements of 13 Nov (afternoon)** are in `01`: three ways to know people were left behind, late "still waiting" taps, left-behind per departure, hold needs GPS, `expected` from ORBIT's own schedule model.
 
 ---
 
@@ -43,7 +46,7 @@
 |---|---|
 | 0 — Environment and Bus E route map | Complete (on `main`, `8b005cc`) |
 | ★ Whole-system design review | **Done** (17 Oct – 11 Nov 2026). Design locked; modules updated 13 Nov |
-| 1 — Stop Agent | In progress — Tasks 1–3 built to the old design; 2 and 3 need rework; build paused |
+| 1 — Stop Agent | In progress — Task 1 confirmed; Tasks 2R, 3R and 9 built (reported `81b6e75`, pushed); next Task 4 |
 | 2 — Route data: both Bus E paths, timetable file, fleet file, ETA rule | Not started |
 | 3 — Bus Agent: state, sources, driver answers | Not started |
 | 4 — Coordinator I: route totals, confirmed overflow, observation mode | Not started — needs Samy's confirmation first |
@@ -77,7 +80,7 @@ Infra only; no Testing Session.
 - `update_edge_weights()` exists (queue-adjusted weights). **Must not feed arrival times** — see Block 2.
 - 13 graph tests passing, run from `backend/` with flat imports (`from simulation.campus_graph …`; no `__init__.py`).
 - `requirements.txt`: `paho-mqtt==2.1.0`, `uvloop==0.22.1; sys_platform != "win32"`, `networkx==3.6.1`, pytest.
-- venv (not committed): Python 3.12.10.
+- venv (not committed): no repo pin; 3.11.18 and 3.12.10 both pass.
 
 **History:** `832dea6` → `b0b691d` → `fa3c144` → `bb8adc7` → `139cd3b` → `344db19` → `31507a9` → `8b005cc`. On 3 Oct 2026 a session that started from a stale checkout rebuilt the graph thinking it was missing; the two lineages were reconciled with nothing lost. That incident produced module 13.
 
@@ -85,7 +88,7 @@ Infra only; no Testing Session.
 
 ## ★ Whole-system design review — DONE
 
-The "Architecture and Real-World Plausibility Review" gate that used to sit after Block 1 was pulled forward and ran 17 Oct – 11 Nov 2026. Outcome: the design in `01` was replaced (spare bus, Coordinator, confirmed trigger, stops report all the time, app signals count at CP/Jalan Amal). Record: `claude/ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md`.
+The "Architecture and Real-World Plausibility Review" gate that used to sit after Block 1 was pulled forward and ran 17 Oct – 11 Nov 2026. Outcome: the design in `01` was replaced (spare bus, Coordinator, confirmed trigger, stops report all the time, app signals count at CP/Jalan Amal). Record: `ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md`.
 
 Effect on built code:
 - Task 1 (levels) stays — levels are now display only.
@@ -97,20 +100,20 @@ Effect on built code:
 
 ## Block 1 — Stop Agent (start with Bus E: KDOJ, KLG, KDSE, CP)
 
-- [ ] **Task 1 — Demand levels** (LOW / MEDIUM / HIGH / CRITICAL; negative raises `ValueError`) — TC102. *Built: `classify_demand` + ordered `DemandLevel` IntEnum, reported `709e7c9`, pushed. Stays as is. Tick once fetch-confirmed.*
-- [ ] **Task 2R — Report on every tick.** Rework of `decide_broadcast` (`2ae4c93`): the Stop Agent publishes its state on every report tick whatever the level; LOW is reported too; no priority flag, no keepalive, no claim suppression. — TC101
-- [ ] **Task 3R — CP and Jalan Amal.** Rework of `evaluate_broadcast` / `INTERCHANGE_STOP_IDS` (`47262d8`): app signals at CP and Jalan Amal count like anywhere else; the only special case left is that no `expected` number is produced for those two stops. Keep the separation from `02`'s routing list (n24, ktc are not special here). — TC107, TC108
-- [ ] **Task 4 — Waiting count from app signals.** Add a signal, count per stop and route, expire old signals. Replaces the old adoption-scaling task (`app_count / adoption` is gone). — R1
-- [ ] **Task 5 — One signal per token.** One accepted signal per token, per stop, per route, per 30 minutes; a repeat is ignored silently. Key `{token}:{stop}:{corridor}` per `08`. — TC103
-- [ ] **Task 6 — After the bus passes.** "Still waiting" keeps the student in the count and adds to `left_behind`; no answer removes them as boarded. — TC110
+- [x] **Task 1 — Demand levels** (LOW / MEDIUM / HIGH / CRITICAL; negative raises `ValueError`) — TC102. *`709e7c9` — confirmed on origin by Coddy's 13 Nov session. Unchanged; test comments relabelled TC101/TC102.*
+- [ ] **Task 2R + Task 9 — The state, built on every tick.** `decide_broadcast`, `BroadcastDecision`, `KEEPALIVE_INTERVAL` deleted. `StopState` (frozen dataclass) + `build_stop_state(...)`, produced at every level; `level = classify_demand(best count)`; `left_behind` is the sum of `left_behind_by_departure`; `to_dict()` gives the message shape. — TC101. *Built, reported `81b6e75`, pushed. Tick once a later session fetch-confirms.*
+- [ ] **Task 3R — CP and Jalan Amal.** `evaluate_broadcast` deleted. `NO_EXPECTED_STOP_IDS` / `produces_expected()`; `expected` is forced to `None` at CP and Jalan Amal where the state is built (Coddy's choice: coerce, not raise — accepted); n24 / ktc explicitly not in the set; a count at CP counts at every level. — TC108, Stop-Agent half of TC107. *Built, reported `81b6e75`, pushed.*
+- [ ] **Task 4 — Waiting count from app signals.** Add an "I'm waiting" signal, count per stop and route, expire old signals. Keep one record per token so Tasks 5, 6 and 8 are updates to that record. Replaces the old adoption-scaling task. — R1
+- [ ] **Task 5 — One "I'm waiting" per token.** One accepted `initial` signal per token, per stop, per route, per 30 minutes; a repeat is ignored silently. `still_waiting` and `transfer` are updates, always accepted. Key `{token}:{stop}:{corridor}`. — TC103, TC150
+- [ ] **Task 6 — After the bus leaves.** No answer → removed as boarded. "Still waiting" → kept, recorded against the most recent departure of that route from that stop — even late, even after removal (put back as one person). If that bus did not leave full, the tap is not an overflow. Per departure, take the largest source, never the sum. — TC110, TC142, TC143
 - [ ] **Task 7 — Strange-count flag (rule layer).** Flag when the count is more than 3× `expected`; keep the count; never drop it. Isolation Forest is Block 11, not here. — TC105
 - [ ] **Task 8 — Transfer hand-over.** Move a person from one stop-and-route count to another in one step, never in both. (The app side is Block 12.) — TC109
-- [ ] **Task 9 — State message.** One state object with `waiting_app`, `left_behind`, `expected`, `estimated_total`, `level`, `flagged` (`01` Stop Agent "State").
 
 **Testing Session (GATE):**
 - [ ] Coverage check on the Stop Agent module (a floor, not a target)
 - [ ] First Hypothesis property test — "the level never goes down when the count goes up" (the `IntEnum` was built for this)
 - [ ] Second property — "one person is never counted at two stops at once" (Task 8)
+- [ ] Third property — "one token is never counted more than once at a stop and route", across any mix of `initial`, `still_waiting` and `transfer` signals (Tasks 5–6)
 - [ ] Choose the mutation tool (MutPy or cosmic-ray), note why, confirm it runs here
 - [ ] **Mutation run executed and its survivors triaged** — record the kill rate as the first baseline; kill each survivor with a test or accept it with a one-line reason
 - [ ] Flaky-test check (random order, repeated runs) before trusting the mutation score
@@ -118,7 +121,7 @@ Effect on built code:
 > No numeric pass mark is set on purpose. The threshold is an open question with Huiming (`11`).
 > This first session's goal is the baseline and learning the tooling.
 
-**Status:** Paused after Task 3 (3 Oct 2026). 57 tests green at `47262d8` (13 graph + 44 stop-agent). Tasks 1–3 are pushed; boxes stay unticked until a fresh session fetch-confirms. Next: Coddy catch-up, then Task 2R.
+**Status:** In progress. 13 Nov 2026: Tasks 2R + 9 and 3R built and pushed (`81b6e75`, reported). **58 tests green** (13 graph + 45 stop-agent): 37 old stop-agent cases deleted, 38 new, 3 survive renamed, 13 unchanged. `agents/stop_agent.py` imports nothing from `simulation/`. Open detail: the format of the departure key (`departure_id`) — settled in Block 3; it must identify one trip of one bus and work for a spare's extra trip, which has no timetable slot. Next: Task 4.
 
 ---
 
@@ -132,6 +135,9 @@ Data foundations. Small, and safe to do before anything else changes.
 - [ ] Timetable as a config file per semester: weekday, Friday (no service 12:40–14:00) and weekend patterns; which bus runs which path. Loaded from the Oct 2026 facts in `07`.
 - [ ] Fleet file: buses, seats, role (scheduled / spare), spare waiting spots, drive time from each waiting spot to each route start. — TC141
 - [ ] Rename note in code/docs: "interchange node" is a routing term only.
+- [ ] Delete `update_edge_weights()` and its test in the same commit that switches `get_eta` to `base_time` — one number per edge (Coddy's call, agreed).
+- [ ] The route map is real data, not simulation: move `campus_graph.py` out of `simulation/` (suggested — the Coordinator and the ETA code need it, and agents must not import from `simulation/`). Coddy's call on the folder name.
+- [ ] `backend/demand/` — ORBIT's own schedule model for the `expected` number, separate from the simulator's crowd generator.
 
 **Testing Session:** coverage on the loaders; property test "ETA to a stop never depends on that stop's queue".
 
@@ -144,7 +150,9 @@ Data foundations. Small, and safe to do before anything else changes.
 - [ ] Bus state object and status values (`01` Bus Agent "State"), scheduled and spare roles
 - [ ] Position from the best source: PAJ GPS → driver device → timetable estimate, with `position_source` — TC134
 - [ ] Load from the best source: door counter → driver tap → rider taps, with `load_source` — TC130
-- [ ] "Left full" report when a bus leaves a stop (door counter at seat count, driver "full", or driver "left people behind")
+- [ ] "Left full" report when a bus leaves a stop (door counter at seat count, or driver "full"), plus how many boarded at that stop where there is a door counter
+- [ ] The driver's question: when the bus is full at a stop the screen asks "Did you have to turn people away?" by itself; Yes / No / Not sure; no answer = unknown — TC146
+- [ ] Trip key (`departure_id`): identifies one trip of one bus; must also work for a spare's extra trip
 - [ ] Instruction handling: deliver only while stopped; never to a driver on a break; "OK, going" / "Can't"; no answer = "Can't" — TC127, TC128, TC129
 - [ ] Manager controls are timing-only; a route change is rejected and logged — TC133
 
@@ -161,7 +169,7 @@ Data foundations. Small, and safe to do before anything else changes.
 - [ ] Samy's confirmation received
 
 - [ ] Whole-route count: `route_overflow(seats_left, waiting_in_stop_order)` — TC111
-- [ ] Confirmed overflow: bus left full AND people still waiting; a driver's "left people behind" counts for both — TC112 (detection part), TC113
+- [ ] Confirmed overflow: bus left full AND people still waiting, known three ways (app count against door-counter boardings; "still waiting" taps; the driver's "Yes"). Largest source per departure, not the sum. A driver's "Yes" counts for both halves; a flagged count is never used for the automatic check — TC112 (detection part), TC113, TC144, TC145, TC147, TC148
 - [ ] No action on a prediction while predicting ahead is off — TC114
 - [ ] Flagged count with nothing confirming it → no overflow; confirmed by driver or door counter → believed — TC105, TC106
 - [ ] Each overflow recorded once — TC118 (detection part)
@@ -195,7 +203,7 @@ Endpoints per `03_DASHBOARD_AND_INTEGRATION.md`.
 - [ ] `POST /api/demand` — server-side geofence check (coordinates used, then discarded), token check, flag check — TC104
 - [ ] `POST /api/still-waiting`, `POST /api/crowd-report`
 - [ ] `GET /api/trip-plan` (which bus, where to change), `GET /api/eta/...`, `GET /api/buses/{id}`
-- [ ] Driver: `POST /api/driver/load`, `POST /api/driver/left-behind`, `POST /api/driver/ack`, `/ws/driver/{bus_id}`
+- [ ] Driver: `POST /api/driver/load`, `POST /api/driver/turned-away`, `POST /api/driver/ack`, `/ws/driver/{bus_id}`
 - [ ] Manager: `GET/PUT /api/settings/extra-trips`, `POST /api/proposals/{id}/approve|skip`, `POST /api/override`
 - [ ] `/ws/dashboard`, `/ws/app/...`
 - [ ] Raw signals deleted after 2 hours; anonymous totals kept — TC139
@@ -244,6 +252,7 @@ Which statistics and formats is still open with Samy — settle at the start of 
 - [ ] Spare pool from the fleet file; free / on a job / on a break
 - [ ] Case 1: spare nearby → leaves between the full bus and the next scheduled bus; no other bus changes — TC112
 - [ ] Case 2: spare further, next bus at the terminus → spare accepts first, then the next bus leaves early and the spare covers the original time — TC115
+- [ ] Case 2 timing check: enough time left before proposing, and again before the pull-forward. **What happens when the time has run out is for Samy to decide at the confirmation gate.**
 - [ ] Case 3: neither → nothing moves; alert; `NO_SPARE_AVAILABLE` — TC116
 - [ ] Two routes at once → bigger left-behind crowd first — TC117
 - [ ] Manager setting: Ask me first / Automatic / Off, and the no-answer rule — TC120–TC123
@@ -265,6 +274,7 @@ Which statistics and formats is still open with Samy — settle at the start of 
 - [ ] Control points and peak periods in config
 - [ ] Hold when too close behind the bus ahead; never longer than the longest hold — TC131
 - [ ] No hold off-peak, away from a control point, or when the gap is fine — TC132
+- [ ] No hold unless both buses' positions come from GPS — TC149
 - [ ] Arrival times add the remaining hold; app and driver screen show it
 - [ ] Manager release — TC133
 
@@ -322,15 +332,15 @@ Replaces the old "prototype reconciliation" block. The prototypes in the repo st
 
 | TC | Block |
 |---|---|
-| TC101, TC102, TC103, TC105, TC107, TC108, TC109, TC110 | 1 |
+| TC101, TC102, TC103, TC105, TC107, TC108, TC109, TC110, TC142, TC143, TC150 | 1 |
 | TC136, TC137, TC141 | 2 |
-| TC127, TC128, TC129, TC130, TC133, TC134 | 3 |
-| TC106, TC111, TC113, TC114, TC124, TC126 | 4 |
+| TC127, TC128, TC129, TC130, TC133, TC134, TC146 | 3 |
+| TC106, TC111, TC113, TC114, TC124, TC126, TC144, TC145, TC147, TC148 | 4 |
 | TC135 | 5 |
 | TC104, TC139 | 6 |
 | TC138, TC140 | 8 |
 | TC112, TC115, TC116, TC117, TC118, TC119, TC120, TC121, TC122, TC123, TC125 | 9 |
-| TC131, TC132 | 10 |
+| TC131, TC132, TC149 | 10 |
 
 ---
 

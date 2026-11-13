@@ -1,6 +1,8 @@
 # ORBIT Context Modules — Index (13 Nov 2026)
 > The map of the module set after the design was locked on 11 Nov 2026 and written into every
 > module on 13 Nov 2026. Replaces the July 2026 index.
+> Refined the same afternoon after Coddy's sync report (three ways to know people were left behind,
+> late "still waiting" taps, the prompted driver question, hold needs GPS) — see `00` design change log.
 > If any other document — an older chat, the thesis, the prototypes, `CLAUDE.md` or `docs_modules/`
 > in the repo before Coddy syncs them — disagrees with a module dated 13 Nov 2026, the module wins.
 

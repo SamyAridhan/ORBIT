@@ -26,7 +26,7 @@ Nothing changes in what gets built — only how it is described. The timetable-o
 
 ## Sanity check (before every work session)
 
-1. **Which requirement does this serve?** Name an ID from `claude/14_SYSTEM_REQUIREMENTS.md`. If you can't, stop.
+1. **Which requirement does this serve?** Name an ID from `14_SYSTEM_REQUIREMENTS.md`. If you can't, stop.
 2. **Is it one of the "never" lines (N1–N9)?** Then don't.
 3. **Is it physical?** Door counters, driver devices, GPS hardware and the spare pool are assumptions the simulator plays. ORBIT builds logic and interfaces.
 4. **Still System Development language?**
@@ -79,7 +79,7 @@ The design was replaced on 11 Nov 2026. These must not come back in code, tests,
 Any idea that makes a scheduled bus leave earlier without cover, leave later to wait for a queue, skip a stop, or swap routes breaks the first principle. If a "clever" response moves a scheduled bus, check that a spare covers the original time and that the spare's driver accepted first.
 
 ### ACTIVE — Trap 14: acting on a guess
-The whole-route count and app numbers are for display, logging and reports. An extra trip needs a bus that really left full and people really still waiting. Predicting ahead is a switch that stays off until the observation data earns it. A flagged count never acts alone.
+The whole-route count and app numbers are for display, logging and reports. An extra trip needs a bus that really left full and people really still waiting (three ways to know — `01`). A driver's silence or "Not sure" is never "nobody was left"; it is "unknown". Predicting ahead is a switch that stays off until the observation data earns it. A flagged count never acts alone.
 
 ### ACTIVE — Trap 15: assumed is not built, and not promised
 - Door counters, driver devices, GPS coverage on Bus B/E/F and the spare pool are **assumptions**. Say so wherever they matter.

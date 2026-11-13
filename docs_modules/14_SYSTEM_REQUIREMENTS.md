@@ -1,6 +1,6 @@
 # Module 14 — What ORBIT Must Do (System Requirements)
 > New module, 13 Nov 2026. A short list of everything ORBIT has to do, written from the design
-> Samy locked on 11 Nov 2026 (`claude/ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md`, section 3).
+> Samy locked on 11 Nov 2026 (`ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md`, section 3).
 > This replaces the PSM1 use case map as the **working** list for design, build and tests.
 > Each line has an ID so a test case in `01_AGENT_DESIGN.md` or a task in `12_BUILD_MILESTONES.md`
 > can point back to the thing it proves.
@@ -35,7 +35,7 @@
 - **S2** See when the next bus comes. If the position is only a timetable guess, it says "approximate".
 - **S3** See how full the coming bus is.
 - **S4** Be counted as waiting for a bus without logging in. The app is never required to ride.
-- **S5** After the bus passes, be asked "did you get on?" when the app is open. No answer means "got on". "Still waiting" tells ORBIT someone was left behind.
+- **S5** After the bus passes, be asked "did you get on?" when the app is open. No answer means "got on". "Still waiting" tells ORBIT someone was left behind — and a late "still waiting" always counts, as one person.
 - **S6** When changing bus at CP or Jalan Amal, be counted for the second bus without tapping again.
 - **S7** Be told about an extra bus ("Extra Bus E at KDOJ, 7:32") and about a short hold ("holding 2 min").
 - **S8** Optionally tap how full the bus is while riding.
@@ -43,7 +43,7 @@
 
 ## For drivers
 
-- **D1** Tap how full the bus is (about empty / half / full) and "left people behind".
+- **D1** Tap how full the bus is (about empty / half / full). When the bus is full, be asked one question — "Did you have to turn people away?" Yes / No / Not sure. The driver is asked, never expected to remember.
 - **D2** Get an instruction as one big message with a sound, and answer "OK, going" or "Can't".
 - **D3** Only get instructions while the bus is stopped. Never during a break.
 - **D4** "Can't" is always respected. ORBIT tries another spare or tells the manager.
@@ -66,14 +66,14 @@
 - **R2** Know how full each bus is from the best source it has: door counter, then driver tap, then rider taps.
 - **R3** Know where each bus is from the best source it has: PAJ GPS, then the driver's device, then a timetable estimate.
 - **R4** Add up everyone waiting along a whole route against the seats on the coming bus.
-- **R5** Notice a confirmed overflow: a bus really left full **and** people are really still waiting.
+- **R5** Notice a confirmed overflow: a bus really left full **and** people are really still waiting. "Still waiting" is known three ways: the app count against door-counter boardings, students' taps, or the driver's "Yes". Each is recorded against the bus that left them.
 - **R6** Answer a confirmed overflow with a spare bus when one can make it (see `01`):
   1. spare nearby — it leaves between the full bus and the next scheduled bus, the earlier the better;
   2. spare further away and the next bus is already at the terminus — the next bus leaves a few minutes early and the spare covers the original time;
   3. neither — nothing moves; alert the manager and log it.
 - **R7** When two routes need the spare at once, the bigger left-behind crowd goes first.
 - **R8** One spare gets at most one job at a time. Each overflow gets at most one response.
-- **R9** Hold a bus for a minute or two at a control point when it has caught up too close to the bus ahead, at peak only.
+- **R9** Hold a bus for a minute or two at a control point when it has caught up too close to the bus ahead, at peak only, and only when both buses' positions come from GPS.
 - **R10** Flag a count that looks wrong, keep it, and don't act on it alone. Believe it if the driver or door counter agrees.
 - **R11** Run in observation mode: decide, log, don't act. Report how often it would have been right.
 - **R12** Learn what share of riders use the app at each stop, by comparing app counts with door counts.
@@ -90,7 +90,7 @@
 - **N4** Never acts on a flagged, unconfirmed count.
 - **N5** Never sends an extra trip before a bus has actually left full, until the observation months show its predictions are right and that mode is switched on.
 - **N6** Never instructs a moving bus or a driver on a break.
-- **N7** Never needs the app. With zero app users, drivers and door counters still report full buses.
+- **N7** Never needs the app. With zero app users, a driver's "Yes, I turned people away" is enough.
 - **N8** Never becomes a single point of failure. If ORBIT is down or wrong, buses run the timetable.
 - **N9** Never uses machine learning in the decision path. The only AI in that path is the Isolation Forest check that flags strange counts.
 
@@ -104,7 +104,7 @@ These are stated deployment assumptions. In the demo the simulator plays them.
 |---|---|
 | A shared pool of spare buses (existing supplementary buses re-designated), waiting near the busiest spots at peak | Simulator, from a fleet data file |
 | Any driver can drive any route; standby time is separate from breaks | Simulator |
-| Door counters on buses, or drivers tapping "how full / left people behind" | Injector |
+| Door counters on buses, or drivers tapping how full and answering the "turned people away?" question | Injector |
 | A screen in the bus for the driver (a phone or tablet running the web app) | Driver mode of the PWA |
 | Bus positions from PAJ's GPS, or from the driver's device | Injector |
 | 28 seats per bus | Config value (placeholder) |
@@ -117,7 +117,7 @@ What ORBIT builds: the three agents, the backend, the student app, the driver mo
 
 Set at build time, kept in config, never presented as settled: seats per bus (28); how close is "too
 close" for a hold and the longest hold; the manager's answer timeout; how many left-behind people
-justify an extra trip; pool size and where spares wait; the confidence needed before predicting
+justify an extra trip (starts at 1); pool size and where spares wait; the confidence needed before predicting
 ahead; all travel times.
 
 ---

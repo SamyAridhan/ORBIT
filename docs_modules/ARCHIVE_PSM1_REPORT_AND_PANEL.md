@@ -50,7 +50,7 @@ These are reusable answers — the underlying reasoning holds regardless of whic
 > No new buses. UTM already runs supplementary buses on fixed timetables (Bus E went from 2 to 6; two are KDOJ-only extras). The design re-designates buses like those as a shared pool. A shared pool covers more with fewer vehicles than a fixed extra per route, because demand moves around from day to day — and a spare only drives when it's needed. This is a stated deployment assumption; the simulator plays it.
 
 **"What if students don't use the app?"**
-> ORBIT still works. A full bus is reported by the door counter or the driver's tap, and "left people behind" by the driver. The app makes ORBIT faster and better informed — it adds who was left behind and where they want to go — but it is never required. The system measures the share of riders using the app at each stop during an observation period instead of assuming one.
+> ORBIT still works. A full bus is reported by the door counter or the driver's tap, and when it is full the driver is asked one question — whether people had to be turned away. The app makes ORBIT faster and better informed — it adds who was left behind and where they want to go — but it is never required. The system measures the share of riders using the app at each stop during an observation period instead of assuming one.
 
 **"Does the system act on its own?"**
 > Only as far as the fleet manager lets it. One setting: ask me first, send automatically and tell me, or off. The driver can always answer "Can't". And before any of that, the system runs in observation mode — it logs what it would have done and is checked against what happened.

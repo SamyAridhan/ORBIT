@@ -26,18 +26,18 @@ Simulation scope: Bus B, E, F. Bus E is built first (reference implementation).
 | **Never take a departure away** (N1) | No scheduled departure is removed or made later by an overflow response. The only early move is a pull-forward, and only when a spare covers the original time and the spare's driver accepted first. |
 | **No rerouting** (N2) | Buses never change routes or stops. A spare on an extra trip drives the route's normal path. |
 | **Arrival compression is forbidden** (N3) | Removed design error. Do not implement, reference, or create anything named `*compression*` or `ARRIVAL_COMPRESSION*`. See `05_GROUNDING_CHECKLIST.md` Trap 11. |
-| **Confirmed overflow only** (R5, N4, N5) | Act when a bus really left full AND people are really still waiting. A driver's "left people behind" tap covers both halves. Never on a prediction, never on a demand level, never on a flagged unconfirmed count. |
+| **Confirmed overflow only** (R5, N4, N5) | Act when a bus really left full AND people are really still waiting. "Still waiting" is known three ways, each recorded against the departure that left them: the app count against door-counter boardings; students' `still_waiting` taps (a late tap always counts, as one person); the driver's "Yes" to the question the screen asks when the bus is full. Per departure take the **largest** source, never the sum. Nothing can confirm it → send nothing, log `LEFT_FULL_UNCONFIRMED`. Never on a prediction, never on a demand level, never on a flagged unconfirmed count. |
 | **Levels are colours** (R1) | LOW / MEDIUM / HIGH / CRITICAL are display only. They trigger nothing. Stops report on every tick at every level. |
 | **CP and Jalan Amal count** (S6) | App signals at those stops count like anywhere else. The only special case: no schedule-based `expected` number is produced for them. "Interchange node" is a routing word in module 02 — never reuse that list for anything about demand. |
 | **Flag, don't drop** (R10) | A strange count is flagged and kept, never deleted. Believed if the driver or door counter agrees. |
 | **One job, one response** (R8) | One spare gets at most one job at a time; each overflow gets at most one response. (Replaces the old claim-lock.) |
 | **Three cases, in order** (R6) | Spare nearby → leaves between the full bus and the next scheduled bus. Spare further and next bus at terminus → spare accepts first, then next bus leaves early and the spare covers its time. Neither → nothing moves; alert the manager; log `NO_SPARE_AVAILABLE`. |
-| **Holding is for spacing only** (R9) | Hold 1–2 min at a control point, at peak, when too close behind the bus ahead. Never for a queue. |
-| **Driver can always say "Can't"** (D2–D4, N6) | Instructions only while stopped, never on a break. No answer = "Can't". "Can't" is final for that instruction. |
+| **Holding is for spacing only** (R9) | Hold 1–2 min at a control point, at peak, when too close behind the bus ahead — and only when both buses' positions come from GPS (never on a timetable estimate). Never for a queue. |
+| **Driver is asked, never expected to remember** (D1–D4, N6) | When the bus is full the screen asks "Did you have to turn people away?" Yes / No / Not sure — there is no optional "left people behind" button. "Not sure" or no answer is unknown, never "nobody was left". Instructions only while stopped, never on a break. No answer to an instruction = "Can't"; "Can't" is final. |
 | **Manager controls are timing-only** (M5) | hold / release / cancel extra trip / return to schedule. A route change is rejected and logged `OVERRIDE_REJECTED`. |
 | **ETA is plain travel time plus any hold** (R13) | `get_eta` uses `base_time`. Queue-adjusted edge weights must never feed arrival times. A busy stop never gets a shorter time. |
 | **Only one AI/ML component** (N9) | Isolation Forest to flag strange counts. It never deletes, never decides. No other ML/AI in the decision path. |
-| **The app is never required** (N7) | Zero app users must still work: drivers and door counters report full buses. |
+| **The app is never required** (N7) | Zero app users must still work: a driver's "Yes, I turned people away" is enough on its own. |
 | **Fallback to the timetable** (N8) | Broker or Coordinator down → every bus runs its timetable, nothing left pending. |
 | **Observation mode** (R11) | Rollout stage `observe`: decide, log `SHADOW_WOULD_SEND`, send nothing. |
 | **Data, not code** (R15) | Timetable, buses, drivers, spare pool, control points, peak periods are config files. Adding a bus is adding a record. |
@@ -59,7 +59,7 @@ placeholders, never presented as settled:
 | Demand level cut-offs | 5 / 16 / 31 | Display colours only |
 | Hold: "too close" gap and longest hold | 1–2 min idea | Not set |
 | Manager answer timeout | N minutes | Not set |
-| Left-behind people that justify an extra trip | — | No value set yet |
+| Left-behind people that justify an extra trip | 1 | Placeholder; a driver's "Yes" always meets it |
 | Signal expiry; token rate window | 30 min | Starting value |
 | Strange-count rule | > 3× `expected` | Starting value |
 | All travel times (`02`), spare pool size and waiting spots | — | Estimates / data files |

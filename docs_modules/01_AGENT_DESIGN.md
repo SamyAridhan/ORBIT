@@ -1,16 +1,20 @@
 # Module 01 — ORBIT Agent Design Specification
 > Rewritten 13 Nov 2026 to the design Samy locked on 11 Nov 2026
-> (`claude/ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md`, section 3).
+> (`ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md`, section 3).
 > **Replaced:** the six-step Bus Agent checklist, Hold-or-Early-Departure as a queue response, the
 > 12-minute protected window, the 85% capacity lock, the utility score, adoption-rate scaling,
 > "interchange stops never signal", and test cases TC01–TC17.
 > **Still banned:** arrival compression (`05_GROUNDING_CHECKLIST.md` Trap 11).
 > Words: "route" in this file is `corridor_id` in the code. A "spare" is a bus from the shared pool.
-> Requirement IDs (S1, R6, N1 …) refer to `claude/14_SYSTEM_REQUIREMENTS.md`.
+> Requirement IDs (S1, R6, N1 …) refer to `14_SYSTEM_REQUIREMENTS.md`.
 > The rules below are locked. The smaller rules Chatty filled in while writing this file (one tap =
-> one person; spare's driver accepts first; no answer = "Can't"; a driver's "left people behind"
-> covers both halves of the trigger) were confirmed by Samy on 13 Nov 2026. The names of topics,
-> events and endpoints are proposals Coddy may adjust; numbers marked placeholder are set at build time.
+> one person; spare's driver accepts first; no answer = "Can't") were confirmed by Samy on 13 Nov 2026.
+> **Amended later on 13 Nov 2026** after Coddy's sync report and Samy's rulings (tracker 3.16):
+> three ways to confirm people were left behind; the driver is asked one question, not expected to
+> remember a button; a late "still waiting" tap always counts; left-behind is recorded per
+> departure; `expected` comes from ORBIT's own schedule model, not the simulator; no hold without
+> GPS on both buses. The names of topics, events and endpoints are proposals Coddy may adjust;
+> numbers marked placeholder are set at build time.
 
 ---
 
@@ -33,7 +37,8 @@
 | Stop Agent | One per stop-and-route pair (e.g. KDOJ for Bus E) | Keeps the count of who's waiting. Reports all the time. |
 | Bus Agent | One per bus, spares included | Owns its position, load and hold. Runs the driver screen. Carries out instructions. |
 | Coordinator | One | Watches each route's total against the coming bus. Owns the spare pool. Decides which overflow gets the spare. |
-| Demand engine | One (simulation only) | Plays the real crowd in the simulator, and gives the schedule-based "expected" number. Not an agent. |
+| Schedule model | One (`backend/demand/`) | ORBIT's own estimate of the normal crowd per stop, route and time — the `expected` number. Part of the real system. Not an agent. |
+| Crowd generator | One (simulation only) | Plays the real crowd in the simulator. Agents never read it or import it. |
 
 **Why agents and not one program:** each stop and bus owns its own state and rules; a new bus is a new record, not new code; and if the Coordinator or the broker goes down, every bus simply runs its timetable.
 
@@ -51,16 +56,25 @@ Keep the count of who is waiting at its stop for its route, and publish that sta
 | Number | Where it comes from | Used for |
 |---|---|---|
 | `waiting_app` | Students who picked this route in the app at this stop and haven't boarded | Dashboard, route totals, planning |
-| `left_behind` | Students who tapped "still waiting" after a bus left; plus a driver's "left people behind" tap | The overflow trigger |
-| `expected` | The schedule-based estimate for this stop and time | Dashboard ("expected about 20"), the strange-count check. **Never a trigger.** |
+| `left_behind` | Students who tapped "still waiting" after a bus left — recorded per departure, so ORBIT knows which bus left them | One of the three ways an overflow is confirmed |
+| `expected` | ORBIT's own schedule model (`backend/demand/`): the class timetable pattern at first, ORBIT's own history totals once they exist | Dashboard ("expected about 20"), the strange-count check. **Never a trigger.** |
 | `estimated_total` | `waiting_app` scaled by the app share learned for this stop | Display and reports, once the share has been learned. Later, predicting ahead. |
 
-A person is counted once. One anonymous token gives one accepted signal per stop, per route, per 30 minutes (`08_STUDENT_APP_DESIGN.md`).
+**One phone is one person.** The anonymous token rule (`08_STUDENT_APP_DESIGN.md`):
+- An `initial` signal ("I'm waiting") is accepted once per token, per stop, per route, per 30 minutes. A repeat is ignored silently.
+- `still_waiting` and `transfer` are **updates about a person ORBIT already knows**. They are always accepted, and they never add a second person.
+- Invariant: one token is never counted more than once at a stop and route.
 
 ### When a signal stops counting
-- The student's bus passes and they don't say "still waiting" → assumed boarded, removed. (No response = boarded. Locked.)
-- They tap "still waiting" → they stay in the count and are added to `left_behind`.
-- The signal gets too old (build-time detail; 30 minutes is the starting value).
+- The student's bus leaves and they don't say "still waiting" → assumed boarded, removed. (No answer = boarded. Locked.)
+- **Unless the door counter says otherwise:** if that bus left full and fewer people boarded at the stop than app users were waiting, the difference stays in the count — no more people are removed as "boarded" than the door counter saw board (Way 1 in "The trigger").
+- They tap "still waiting" — even late, even after ORBIT had assumed they boarded → they are put back, as one person.
+- The signal gets too old (30 minutes is the starting value; placeholder).
+
+### Who was left behind — the Stop Agent's part
+- "Still waiting" taps are recorded **against the departure that left them** (`left_behind_by_departure`). A tap attaches to the most recent departure of that route from that stop.
+- **If that bus did not leave full, the tap confirms nothing.** The student simply missed a bus that had room: they stay in the waiting count, and no spare is sent.
+- The Stop Agent only records. The Coordinator puts this together with the other two ways of knowing people were left behind — the app count against door-counter boardings, and the driver's answer — see "The trigger". For one departure the number is the **largest** of the sources, never their sum.
 
 ### Demand level — a colour, nothing more
 
@@ -102,13 +116,16 @@ class DemandAnomalyDetector:
 ### Learning the app share
 During the observation months, ORBIT compares, per stop and route, how many app users boarded with how many people the door counter saw board. The ratio is the app share for that stop. It is stored as data and used only for `estimated_total` — and later for predicting ahead, if that is ever switched on. (R12)
 
+Caution: "app users who boarded" is partly inferred from "no answer = boarded", so a student who closed the app and walked away counts as boarded. The learned share is therefore an upper bound. Fine for a display estimate; it must be corrected before anyone uses it to predict.
+
 ### State
 ```python
 stop_id: str
 corridor_id: str
 waiting_app: int
-left_behind: int
-expected: int | None          # None at CP and Jalan Amal
+left_behind_by_departure: Mapping[str, int]   # departure id -> "still waiting" taps (read-only)
+left_behind: int              # derived: the sum of the map above
+expected: int | None          # None at CP and Jalan Amal (enforced where the state is built)
 estimated_total: int | None   # None until the app share is learned
 app_share: float | None
 level: DemandLevel            # display only
@@ -121,7 +138,7 @@ last_bus_visit_time: datetime
 2. Count app signals at every stop, CP and Jalan Amal included.
 3. Don't produce `expected` for CP or Jalan Amal.
 4. Flag a strange count; never drop it.
-5. After a bus leaves, move "still waiting" students into `left_behind`; drop the rest as boarded.
+5. After a bus leaves, record "still waiting" students against that departure; drop the rest as boarded. A later "still waiting" tap puts a dropped student back.
 6. Never decide anything about buses. The Stop Agent only reports.
 
 ---
@@ -143,11 +160,19 @@ Own its own state, show the driver what to do, and carry out instructions. It do
 
 The source is carried with the number (`load_source`) so the dashboard and reports can show how sure ORBIT is.
 
-### "Left full"
+### "Left full" and "turned people away"
 When a bus leaves a stop, the Bus Agent reports whether it left full:
-- door counter shows the load at the seat count, or
-- the driver tapped "full", or
-- the driver tapped "left people behind" (this covers both halves of the trigger — a driver only leaves people when the bus is full).
+- the door counter shows the load at the seat count, or
+- the driver tapped "full".
+
+Where the bus has a door counter it also reports how many boarded at that stop.
+
+**The driver's question.** When the bus is full at a stop — the door counter says so, or the driver has just tapped "full" — the driver screen asks one question by itself: **"Did you have to turn people away at the door?" Yes / No / Not sure.**
+- The driver never has to remember to start it.
+- It asks only what a driver knows for certain. He can't tell who at a stop is waiting for which bus; he does know when he closed the doors on people trying to board.
+- "Yes" confirms both halves of the trigger. That is what lets ORBIT work with zero app users.
+- "Not sure" or no answer is "unknown".
+- The driver answers about the bus; students answer about themselves. Neither is covering for the other.
 
 ### Holding — to keep buses spaced (R9)
 A bus that has caught up too close to the bus ahead on the same route waits a minute or two.
@@ -155,6 +180,7 @@ A bus that has caught up too close to the bus ahead on the same route waits a mi
 - Only at a control point (a terminus or a major stop, listed per route in config).
 - Only at peak frequency.
 - Based on the gap to the bus ahead — not on being ahead of the timetable.
+- **Only when both buses' positions come from GPS** (PAJ or the driver's device). If either is a timetable estimate, the "gap" is just what the timetable says, so there is nothing real to act on.
 - `hold = min(wanted_gap − actual_gap, longest_hold)`. Both numbers are placeholders.
 - The driver screen shows "Hold 2 min". The app shows "holding 2 min" to people on board and people waiting. The arrival time adds the hold that is left.
 - The manager can release a hold.
@@ -196,6 +222,8 @@ position_source: Literal["paj_gps", "driver_device", "timetable"]
 next_stop: str
 load: int | None
 load_source: Literal["door_counter", "driver_tap", "rider_taps"] | None
+left_full: bool               # set when the bus leaves a stop
+turned_people_away: Literal["yes", "no", "not_sure"] | None   # the driver's answer; None = not asked or no answer
 seats: int                    # 28 placeholder, from fleet data
 status: BusStatus
 hold_remaining_s: int
@@ -246,16 +274,29 @@ ORBIT acts on a **confirmed overflow**:
 
 > a bus has really left full **and** people are really still waiting.
 
-| Half | Evidence |
-|---|---|
-| The bus left full | Door counter at the seat count, or the driver tapped "full" |
-| People are still waiting | Students tapped "still waiting", or the driver tapped "left people behind" |
+**The bus left full:** the door counter is at the seat count, or the driver tapped "full".
 
-A driver's "left people behind" tap counts for both halves. That is what makes ORBIT work with zero app users.
+**People are still waiting — three ways to know, none of which depends on anyone's memory:**
+
+| Way | How | Needs |
+|---|---|---|
+| **1. Automatic** | The app says 10 people were waiting for Bus E at KDSE. The door counter says 3 got on and the bus is now full. So **at least 7** were left. Nobody taps anything. | A door counter on the bus, and app users at that stop. Never uses a count flagged as strange. |
+| **2. Students** | "Still waiting" taps, recorded against the bus that left. A late tap counts. | App users |
+| **3. Driver** | The driver answers **Yes** to "Did you have to turn people away at the door?" — a question the screen asks by itself when the bus is full. | A driver screen |
+
+Why the driver is asked instead of given a button to remember: where reporting depends on drivers remembering, it gets under-used (Calgary Transit). Evidence for all three ways: `ORBIT_REAL_WORLD_PRECEDENTS.md` section 6.
+
+Any one of the three confirms it. "At least" in Way 1 is deliberate: the counter also counts riders who don't use the app, so the true number left behind can only be higher.
+
+**When nobody can confirm it** — no door counter and app users to compare, no "still waiting" taps, and the driver answers "Not sure" or nothing — ORBIT sends nothing. It logs "left full, unconfirmed" for the planning report and the buses run the timetable. With zero app users ORBIT still works whenever the driver answers Yes; it does not pretend to know when he can't tell.
 
 **Predicting ahead comes later.** Sending the spare *before* a bus fills, from app numbers alone, is switched on only after the observation months show the predictions are right. It is a config switch, off by default.
 
-**How big is the crowd:** the larger of the "still waiting" taps and the app count still waiting on that route. A driver-only report with no numbers counts as the smallest crowd worth acting on (placeholder).
+**How big is the crowd:** the largest number any of the three ways gives. A driver's "Yes" has no number; it always counts as enough to act on.
+
+**Smallest crowd worth an extra trip:** starts at **1** (placeholder). The manager's approval is the real filter; the number can be raised once the observation data shows what is sensible.
+
+**Every source is checked against the others during the observation months** — driver answers against student taps against door counts — so ORBIT learns how far each can be trusted, the same way it learns the app share. No single source is trusted alone; door counters make errors too.
 
 ### What happens — three cases (R6)
 
@@ -267,6 +308,8 @@ A driver's "left people behind" tap counts for both halves. That is what makes O
 3. **Neither is possible.** Nothing moves. The manager gets an alert and the event is logged for the planning report (`NO_SPARE_AVAILABLE`).
 
 An extra trip drives the route's normal path. It is not a reroute. (N2)
+
+**Open detail in Case 2 — to settle with Samy before Block 9 is built.** Between the overflow and the pull-forward instruction, time passes: the manager's approval, the spare driver's answer. The next bus may already have left on time. So the Coordinator must check that there is still enough time before it proposes Case 2, and again before it tells the next bus to leave early. What happens when the window has closed (fall back to Case 1 at the spare's real arrival time, or to Case 3) is not decided. In ask-first mode the manager's answer time eats into this window.
 
 ### Steps the Coordinator follows
 
@@ -306,6 +349,7 @@ This replaces the old "at most one bus claims a stop" claim-lock. It is the targ
 
 ### When ORBIT does not act
 - No spare can make it.
+- Nobody could confirm that people were left behind (see the trigger).
 - The count is flagged as strange and nothing confirms it.
 - The manager's setting is Off, or they tap Skip.
 - ORBIT is in the observation stage.
@@ -347,7 +391,7 @@ UTM gets value even if it only ever adopts stages 0–2. For the FYP, the simula
 5. Timetable for the predictable, spares for the surprises. Spare use is logged; a pattern that repeats becomes a permanent trip next semester. The live system reduces its own workload.
 6. Good for drivers: fewer pointless runs, less fatigue.
 
-Real systems that work this way: `claude/ORBIT_REAL_WORLD_PRECEDENTS.md`.
+Real systems that work this way: `ORBIT_REAL_WORLD_PRECEDENTS.md`.
 
 ---
 
@@ -357,22 +401,24 @@ Coddy may change names at build time; tell Chatty so this table stays true.
 
 | Topic | Publisher | Subscriber | Main fields |
 |---|---|---|---|
-| `stops/{stop_instance}/state` | Stop Agent | Coordinator, dashboard | stop_id, corridor_id, waiting_app, left_behind, expected, estimated_total, level, flagged |
+| `stops/{corridor_id}/{stop_id}/state` | Stop Agent | Coordinator, dashboard | stop_id, corridor_id, waiting_app, left_behind, left_behind_by_departure, expected, estimated_total, app_share, level, flagged |
 | `buses/{bus_id}/position` | GPS feed / driver device / injector | Bus Agent | lat, lng, timestamp, source |
-| `buses/{bus_id}/load` | Door counter / driver tap / rider taps (via the API) | Bus Agent | load or level, source, left_people_behind |
-| `buses/{bus_id}/state` | Bus Agent | Coordinator, dashboard, app backend, other Bus Agents on the route | bus_id, role, corridor_id, position, position_source, load, load_source, status, hold_remaining_s, left_full |
+| `buses/{bus_id}/load` | Door counter / driver tap / rider taps (via the API) | Bus Agent | load or level, source, boarded / alighted per stop, turned_people_away (yes / no / not_sure) |
+| `buses/{bus_id}/state` | Bus Agent | Coordinator, dashboard, app backend, other Bus Agents on the route | bus_id, role, corridor_id, position, position_source, load, load_source, status, hold_remaining_s, left_full, turned_people_away |
 | `coordinator/overflow` | Coordinator | Dashboard | overflow_id, corridor_id, full_bus_id, left_behind_by_stop, confirmed_by |
 | `coordinator/proposal` | Coordinator | Dashboard (manager) | proposal_id, overflow_id, case, spare_id, reason, expires_at |
 | `admin/approval` | Dashboard | Coordinator | proposal_id, decision (approve / skip) |
-| `buses/{bus_id}/instruction` | Coordinator, manager, own hold rule | Bus Agent → driver screen | instruction_id, type, text, depart_at |
+| `buses/{bus_id}/instruction` | Coordinator, manager, own hold rule | Bus Agent → driver screen | instruction_id, kind, text, depart_at |
 | `buses/{bus_id}/ack` | Driver screen | Coordinator | instruction_id, answer (ok / cant) |
 | `admin/override` | Dashboard | Bus Agent, Coordinator | bus_id, action (hold / release / cancel_extra_trip / return_to_schedule) |
 | `demand/signal` | App backend | Stop Agents | stop_id, corridor_id, destination, token, signal_type (initial / still_waiting / transfer) |
 | `system/log` | All agents | Dashboard, reports | agent_id, event, message, reason, timestamp |
 
+The stop topic puts the route first so the Coordinator can listen to a whole route with one wildcard (`stops/E/+/state`). The instruction field is `kind`, the same word `03` uses.
+
 **QoS 1** (must arrive): `demand/signal`, `coordinator/proposal`, `admin/approval`, `buses/+/instruction`, `buses/+/ack`, `admin/override`. Everything else QoS 0.
 
-**Log events:** `OVERFLOW_CONFIRMED`, `OVERFLOW_PREDICTED` (display only), `EXTRA_TRIP_PROPOSED`, `EXTRA_TRIP_APPROVED`, `EXTRA_TRIP_SKIPPED`, `EXTRA_TRIP_SENT`, `PULL_FORWARD_SENT`, `NO_SPARE_AVAILABLE`, `DRIVER_DECLINED`, `SHADOW_WOULD_SEND`, `HOLD_STARTED`, `HOLD_RELEASED`, `COUNT_FLAGGED`, `OVERRIDE_REJECTED`, `FALLBACK_TO_TIMETABLE`.
+**Log events:** `OVERFLOW_CONFIRMED`, `OVERFLOW_PREDICTED` (display only), `EXTRA_TRIP_PROPOSED`, `EXTRA_TRIP_APPROVED`, `EXTRA_TRIP_SKIPPED`, `EXTRA_TRIP_SENT`, `PULL_FORWARD_SENT`, `NO_SPARE_AVAILABLE`, `DRIVER_DECLINED`, `SHADOW_WOULD_SEND`, `HOLD_STARTED`, `HOLD_RELEASED`, `COUNT_FLAGGED`, `LEFT_FULL_UNCONFIRMED`, `OVERRIDE_REJECTED`, `FALLBACK_TO_TIMETABLE`.
 
 ---
 
@@ -387,10 +433,10 @@ requirement in module 14. Wording can be sharpened as each block is built.
 |---|---|---|---|
 | TC101 | 3 people waiting | Level LOW, and the state is still published | R1 |
 | TC102 | Counts 4, 5, 15, 16, 30, 31 | LOW, MEDIUM, MEDIUM, HIGH, HIGH, CRITICAL. Negative count raises an error | R1 |
-| TC103 | Same token signals twice within 30 min | Counted once | S4 |
+| TC103 | Same token sends `initial` twice within 30 min | Counted once | S4 |
 | TC104 | Signal sent from outside the stop's geofence | Not counted; the app is not told why | S9 |
 | TC105 | 40 signals at KDOJ on a quiet Saturday, expected 5 | Count kept, `flagged = true`, shown on the dashboard, nothing triggered | R10, N4 |
-| TC106 | Same as TC105, and the driver taps "left people behind" | Believed; the overflow goes ahead | R10 |
+| TC106 | Same as TC105, and the driver answers "Yes" to "turned people away?" | Believed; the overflow goes ahead | R10 |
 | TC107 | Student at CP picks Bus E | Counted for Bus E at CP and in Bus E's route total | S6 |
 | TC108 | CP with no app users | No `expected` number is published for CP or Jalan Amal | R1 |
 | TC109 | Trip K9/10 → KDOJ (Bus C to CP, then Bus E) | Counted for Bus C at K9/10; on reaching CP, counted for Bus E at CP and removed from Bus C; never in both at once | S1, S6 |
@@ -406,7 +452,7 @@ requirement in module 14. Wording can be sharpened as each block is built.
 | TC115 | Spare can't reach before 7:40; the 7:40 bus is at the terminus | Spare driver accepts first; then the 7:40 leaves at 7:35; spare leaves at 7:40 | R6, N1 |
 | TC116 | No spare can make it; next bus not at the terminus | Nothing moves; manager alerted; `NO_SPARE_AVAILABLE` logged | R6 |
 | TC117 | Bus E leaves 7 behind and Bus B leaves 12 behind; one spare | Bus B gets the spare; Bus E gets an alert and a log entry | R7 |
-| TC118 | Same overflow reported by the driver tap and by "still waiting" taps | Exactly one response | R8 |
+| TC118 | Same overflow confirmed by the driver's answer and by "still waiting" taps | Exactly one response | R8 |
 | TC119 | A spare is already on a job; a second overflow arrives | That spare gets no second job | R8 |
 | TC120 | Setting: Ask me first | Proposal with the reason shown; nothing moves until Approve | M3, M4 |
 | TC121 | Ask me first; no answer for N minutes | "Send anyway" → sent. "Skip" → not sent, logged | M4 |
@@ -439,6 +485,19 @@ requirement in module 14. Wording can be sharpened as each block is built.
 | TC140 | A week in observation mode | Report shows how many times ORBIT would have sent a spare, and how many of those were real | R11 |
 | TC141 | A new bus added to the fleet file | It appears as a Bus Agent with no code change | R15 |
 
+### Added 13 Nov 2026 — how ORBIT knows people were left behind
+| TC | Input | Expected | Req |
+|---|---|---|---|
+| TC142 | Student signals; the bus leaves full; no answer, so removed as boarded; 5 minutes later taps "still waiting" | Back in the count as one person, recorded against that departure | S5 |
+| TC143 | "Still waiting" tap after the most recent bus left with empty seats | Stays in the waiting count; confirms no overflow; no extra trip | R5 |
+| TC144 | 10 app users waiting at KDSE; door counter: 3 boarded, bus now 28/28; nobody taps anything | Overflow confirmed automatically: at least 7 left behind. If 5 of them also tap "still waiting", it is still 7 — the largest, not the sum | R5 |
+| TC145 | Same as TC144, but the count is flagged as strange | Not used for the automatic check | N4 |
+| TC146 | Bus is full at a stop | The driver screen asks "turned people away?" by itself; "Not sure" or no answer is recorded as unknown, never as "nobody left" | D1 |
+| TC147 | Zero app users, no door counter; the driver answers "Yes" | Overflow confirmed | N7 |
+| TC148 | Zero app users, no door counter; the driver answers "Not sure" | No extra trip; `LEFT_FULL_UNCONFIRMED` logged | N7 |
+| TC149 | A bus catches up at a control point at peak; one of the two positions is a timetable estimate | No hold | R9 |
+| TC150 | Any sequence of `initial`, `still_waiting` and `transfer` taps from one token | That token is never counted more than once at a stop and route | S4 |
+
 ### What happened to TC01–TC17
 
 | Old | Now |
@@ -466,6 +525,10 @@ requirement in module 14. Wording can be sharpened as each block is built.
 - **Moving a scheduled bus before the spare has accepted.** Never.
 - **Letting a level trigger something.** Levels are colours.
 - **Dropping a strange count.** Flag it and keep it.
+- **Adding the left-behind sources together.** Take the largest.
+- **Reading the driver's silence as "nobody was left".** "Not sure" and no answer mean unknown.
+- **Dropping a late "still waiting" tap** because the token "already signalled". Only `initial` is rate-limited.
+- **Importing from `simulation/` inside `agents/`.** The real system must not know the simulator exists.
 - **Giving a spare two jobs, or answering one overflow twice.**
 - **Putting a route field in a manager override.**
 - **Reusing the routing "interchange nodes" list for anything about demand.**

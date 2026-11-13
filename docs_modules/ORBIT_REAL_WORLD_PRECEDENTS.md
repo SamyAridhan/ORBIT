@@ -1,6 +1,6 @@
 # ORBIT — Real-World Precedents (evidence that systems like this exist)
 > Collected 11 Nov 2026 by web search, after Samy asked "is there a real transport system that works this way?"
-> Purpose: concrete backing for the locked design in `claude/ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md` — the spare bus,
+> Purpose: concrete backing for the locked design in `ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md` — the spare bus,
 > the driver screen, holding, how ORBIT knows a bus is full, and the planning reports.
 > Sources were read as search summaries, not full papers — check each source before citing it in the PSM2 report,
 > and add the ones used to `06_RESEARCH_FINDINGS.md` in proper citation format.
@@ -47,6 +47,20 @@ Three sources are used in practice — the same three ORBIT uses, best first.
 
 ## What is NOT shown by these sources
 - No single system was found that combines all of these with student demand signals from an app. That combination is ORBIT's own design, so its benefit still has to be shown by ORBIT's simulation and, in real use, by the shadow-mode phase.
+
+## 6. Knowing that people were left behind — and asking again after the bus has gone (added 13 Nov 2026)
+Collected for Samy's questions about the "still waiting" tap (a student whose bus left full, who answers late) and about how far a driver's "left people behind" tap can be trusted (his worry: optional, easy to forget, and a driver can't always tell at a glance).
+- **Drivers log it with a button — Winnipeg Transit:** a "pass-up" is recorded by the bus's on-board computer whenever the operator pushes a button, when a bus is too full to let more passengers board. Published daily as open data (by month since 2011, by route, on a map). Pass-ups peak in September, when students start classes. https://info.winnipegtransit.com/en/open-data/pass-ups/
+- **The data is used to decide where to add service — TransLink (Vancouver):** a pass-up is "whenever customers waiting at bus stops cannot board because the bus is too full". By targeting service at the most crowded routes, the share of bus trips with overcrowding fell from 11.2% (2024) to 5.5% (2025); on Route 321 the share of trips with pass-ups fell from 33% to 15%. Service is adjusted every three months. https://buzzer.translink.ca/2026/06/service-increases-led-to-fewer-pass-ups-last-year/
+- **An app asks the rider after the departure has passed — Transit app, "Rate-My-Ride":** the app knows when a rider is waiting at a stop. If the data shows the departure has already passed, the rider is asked what happened when they missed the vehicle. On board, riders are asked how crowded it is. No personal or specific location information is in the data given to agencies. Baltimore's MDOT MTA used the crowding answers to calibrate its own crowding categories. https://resources.transitapp.com/article/441-rate-my-ride-instant-surveys-with-go
+- **A later tap updates an existing report instead of making a new one — Waze:** how long a report stays on the map depends on how other drivers react; "Not there" shortens it, a positive reaction keeps it relevant. (General description from a guide site, not Waze's own documentation.) https://www.itechguides.com/how-wazes-community-reports-and-police-alerts-work/
+
+- **Warning — a driver button that depends on memory gets under-used — Calgary Transit:** the official left-behind data "comes from bus drivers who record each bus overload in real time". The drivers' union president said "the vast, vast majority of operators don't push that button at some point" (his view from conversations over the years, not from data). Calgary Transit itself says it does not track which routes have the most overloads, wants to strengthen its data collection, and asks customers to report overloads too. https://amp.cbc.ca/news/canada/calgary/calgary-full-buses-leaving-riders-behind-1.7408981
+- **Warning — without any automatic record, pass-ups are only known from complaints — San Francisco Muni:** operators of a full vehicle "call in to report the full vehicle and the need to skip stops"; pass-ups are otherwise followed up through rider complaints to 311 (time, location, line, vehicle number). https://www.sfmta.com/blog/why-muni-sometimes-doesnt-stop
+- **Caution on door counters too:** a Pittsburgh study found about 43–44% of door-counter data blocks had non-zero errors (mean error near zero, high variance) and concluded the counts need better reliability before real-time use. So no single source should be trusted alone. https://ar5iv.arxiv.org/html/2112.06050
+
+**How to use this:** precedent for the driver's "left people behind" tap (Winnipeg), for using left-behind data to plan service (TransLink), and for the "did you get on?" question asked after the bus has gone (Transit app).
+**Not shown by these sources:** the exact rule "one phone counts once, and a later 'still waiting' tap is always accepted for that same person". No source states how these apps de-duplicate. That rule is ORBIT's own design.
 
 ## See also (added 13 Nov 2026)
 - How students come to use a transit app (Grab, Uber, OneBusAway, NUS, Rutgers): evidence in `06_RESEARCH_FINDINGS.md` Part 12; the plan built on it in `08_STUDENT_APP_DESIGN.md`.

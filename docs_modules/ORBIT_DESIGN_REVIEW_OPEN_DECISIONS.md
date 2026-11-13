@@ -4,13 +4,13 @@
 > **11 Nov 2026: the design decisions are now LOCKED** (section 3). This file was rewritten that day into a
 > shorter "what was decided" record; the long back-and-forth was removed, the decisions and their reasons kept.
 > **13 Nov 2026: applied.** Every module (00–12, README, ARCHIVE) now carries this design, a requirements
-> list exists (`claude/14_SYSTEM_REQUIREMENTS.md`), replacement Project instructions were drafted
+> list exists (`14_SYSTEM_REQUIREMENTS.md`), replacement Project instructions were drafted
 > and pasted in by Samy the same day, and the Coddy catch-up note is written
-> (`claude/CODDY_CATCHUP_BRIEF.md`). Samy also confirmed the ten filled-in items (3.15) and locked the
+> (`CODDY_CATCHUP_BRIEF.md`). Samy also confirmed the ten filled-in items (3.15) and locked the
 > student adoption plan (3.14). Not yet done: giving Coddy the module set and the brief, and the build
 > restarting. See section 5.
 > This file stays as the record of **what was decided and why**. For how the system works now, read the modules.
-> Evidence from real transport systems is in `claude/ORBIT_REAL_WORLD_PRECEDENTS.md`.
+> Evidence from real transport systems is in `ORBIT_REAL_WORLD_PRECEDENTS.md`.
 > Last updated: 13 Nov 2026.
 
 ## How to work with Samy on this (his instructions)
@@ -24,7 +24,7 @@
 
 ## 1. Build status
 - Block 0 complete and on `main`. Block 1 Tasks 1–3 built and pushed (`47262d8`): demand levels, broadcast decision, interchange gate.
-- **Build is paused.** Coddy is waiting; nothing has been sent since Task 3. Do not send the old Task 4 go-ahead — send `claude/CODDY_CATCHUP_BRIEF.md` instead.
+- **The build resumed on 13 Nov 2026.** Coddy synced the docs and reworked the Stop Agent (Tasks 2R, 3R and 9; reported `81b6e75`, pushed; 58 tests). Next: Block 1 Task 4.
 - Effect of the locked design on what's built: Task 1 (levels) stays, as display only. Task 2 (broadcast rules) changes: stops report all the time. Task 3 (interchange gate) changes: app signals at CP / Jalan Amal now count (3.6).
 - `12_BUILD_MILESTONES.md` was replanned on 13 Nov into Blocks 0–13 (core-first). First task on resume: Block 1 Task 2R.
 
@@ -57,7 +57,7 @@
 
 ---
 
-## 3. LOCKED design (all confirmed by Samy; 3.1 on 5 Nov and amended 11 Nov, the rest on 11 Nov unless noted; 3.14 and 3.15 on 13 Nov)
+## 3. LOCKED design (all confirmed by Samy; 3.1 on 5 Nov and amended 11 Nov, the rest on 11 Nov unless noted; 3.14–3.17 on 13 Nov)
 
 ### 3.1 Handling a big queue — the spare bus (Decisions 1 + 3)
 **Principle: ORBIT never takes away a departure students are counting on. A spare bus adds capacity.**
@@ -199,9 +199,31 @@ Full text and all source links: `08_STUDENT_APP_DESIGN.md` ("How students come t
 9. Transfer demo inside the three simulated routes: KTR → Cluster = Bus F to CP, then Bus E.
 10. Names of message topics, log events and API endpoints in `01` and `03` are proposals Coddy may adjust.
 
+### 3.16 Knowing people were left behind — LOCKED (Samy, 13 Nov 2026, afternoon)
+Raised by Coddy's sync report (a late "still waiting" tap would have been dropped) and by Samy's worry that an optional driver button is forgettable and that a driver can't always tell who was left.
+- **A late "still waiting" tap always counts, as one person.** The one-signal-per-phone limit applies to "I'm waiting" only; "still waiting" and "changed bus" are updates to a person ORBIT already knows. (Ali taps 7:25, pockets his phone; the 7:30 leaves full and ORBIT assumes he boarded; at 7:35 he taps "Still waiting" — he is put back, once.)
+- **Each left-behind is recorded against the bus that left them.** A tap after a bus that had empty seats confirms nothing — the student just missed it; no spare.
+- **Three ways to know, the driver last:**
+  1. *Automatic* — app says 10 waiting, door counter says 3 boarded and the bus is full → at least 7 left. Nobody taps.
+  2. *Students* — "still waiting" taps.
+  3. *Driver, asked* — when the bus is full at a stop the screen asks "Did you have to turn people away at the door?" Yes / No / Not sure. The optional "left people behind" button is removed.
+- Per departure, take the **largest** source, never the sum. A driver's "Yes" counts for both halves of the trigger. "Not sure" or silence is "unknown", never "nobody".
+- **Accepted limit:** no door counter + no app users + an unsure driver → ORBIT cannot know; it does nothing and the timetable runs. Samy: there is no other way; in real life this gets adopted gradually, as Uber did.
+- Evidence (precedents file, section 6): Transit app asks riders after a departure has passed; Winnipeg drivers log pass-ups with a button; Vancouver uses pass-up data to add service; Calgary shows a memory-based driver button gets under-used; a Pittsburgh study shows door counters err too, so no single source is trusted alone. The exact one-phone-one-person rule is ORBIT's own — no source publishes how they de-duplicate.
+
+### 3.17 Smaller rulings from Coddy's sync report — CONFIRMED (Samy, 13 Nov 2026)
+1. The smallest left-behind crowd worth an extra trip **starts at 1** (still a placeholder).
+2. **No holding unless both buses' positions come from GPS** (PAJ or driver device).
+3. The **"expected" number is ORBIT's own schedule model**, outside the simulator; agent code never imports from `simulation/`.
+4. The learned app share is an upper bound (noted in `01`).
+5. The catch-up brief is saved in the repo; `AGENTS_BACKEND.md` rewritten short by Coddy, with no rule table.
+6. Names: instruction field `kind`; topic `stops/{corridor_id}/{stop_id}/state`. Python: 3.11+, no repo pin.
+
 ---
 
 ## 4. Still open or deferred
+- **For the spare-bus confirmation (before Block 4 / Block 9):** in the pull-forward case, approval and the driver's answer take time while the next bus is minutes from leaving. The Coordinator checks the time before proposing and before the pull-forward — but **what happens when the time has run out is not decided** (raised by Coddy, 13 Nov).
+- **Build-time detail:** the format of the departure key (`departure_id`) — must identify one trip of one bus and work for a spare's extra trip.
 - **PSM2 scope and problem statement (Decisions 0, 11) — deferred** to report-writing time. Examiner advised a smaller PSM2 scope. The real problem is now: fixed extra buses that don't follow demand, bunching, and peak overflow (not 2019's "too few buses").
 - **Fleet planning analyst (Decision 12).**
   - *Core, agreed in principle:* a professional statistical analyst — ready-made reports with proper charts and statistics, presentable in a fleet meeting. "Reports first, AI on top": a deterministic reporting module (load per departure, overflow rate, empty runs, spacing, trends, before/after a timetable change, spare use, shadow-mode hit rate, suggested trips per hour), exportable weekly and per semester; AI commentary is an optional layer on top, outside the control loop. Left out of the PSM2 report; recorded here as real-system design.
@@ -215,17 +237,20 @@ Full text and all source links: `08_STUDENT_APP_DESIGN.md` ("How students come t
 ## 5. Next steps
 
 **Done (Chatty, 13 Nov 2026):**
-1. ✅ One-page "what ORBIT must do" list → `claude/14_SYSTEM_REQUIREMENTS.md`.
+1. ✅ One-page "what ORBIT must do" list → `14_SYSTEM_REQUIREMENTS.md`.
 2. ✅ Modules updated in one pass: `00`, `01`, `02`, `03`, `05`, `07`, `08`, `12`, README rewritten; `06`, `09`, `10`, `11`, ARCHIVE updated; `13` unchanged.
-3. ✅ Coddy catch-up note written → `claude/CODDY_CATCHUP_BRIEF.md`.
+3. ✅ Coddy catch-up note written → `CODDY_CATCHUP_BRIEF.md`.
 4. ✅ Adoption plan and its sources written into `08` and `06`; locked (3.14).
 
 **Done (Samy, 13 Nov 2026):**
 5. ✅ New Project instructions pasted in.
 6. ✅ Filled-in items confirmed (3.15).
 
-**Left, when Samy is ready to build again:**
-7. Give Coddy the module zip (for `docs_modules/`) and the catch-up brief. Coddy syncs, reports back, then starts Block 1 Task 2R.
+**Done (13 Nov, afternoon):**
+7. ✅ Coddy synced `docs_modules/`, rewrote `CLAUDE.md` and `AGENTS_BACKEND.md`, and built Tasks 2R, 3R and 9. Samy ruled on 3.16 and 3.17; modules updated again.
+
+**Left:**
+7a. Give Coddy the updated module zip; Block 1 continues from Task 4.
 8. **Confirm 3.1 once more before Block 4** (the first block that builds overflow handling). Blocks 1–3 don't depend on it.
 
 **Carried over, no rush:** the simulation scenario library (section 8); the missing Bus D and E2-weekend sheets; Bus E's return path; which statistics go in the planning reports.
@@ -279,5 +304,6 @@ The simulator becomes a library of realistic scenarios, also used to play the ob
 - **17 Oct:** first whole-system review. Found the design assumed things it couldn't know (bus load, what the driver is told, app share, GPS on B/E/F), and that early departure checked the wrong gap. New schedule data showed UTM now runs 6 Bus E buses every 10 minutes at peak. ORBIT reframed as demand picture + fleet decision support + planning reports.
 - **5 Nov:** Decisions 1 + 3 locked as Samy's "pull forward + spare backfill", with the shared spare pool, approval setting, driver screen and staged rollout.
 - **6 Nov:** Samy raised the dispatch-rules question (when exactly does ORBIT dispatch?).
+- **13 Nov (afternoon):** Coddy's sync report found real gaps (late "still waiting" taps dropped; `expected` tied to the simulator; a race in the pull-forward case; holding on timetable positions). Samy questioned the optional driver button; evidence collected (Transit app, Winnipeg, Vancouver, Calgary). Locked 3.16 and confirmed 3.17. Coddy built Tasks 2R, 3R and 9.
 - **13 Nov:** all modules rewritten or updated to the locked design; requirements list, replacement Project instructions (pasted by Samy) and the Coddy catch-up note written. Samy confirmed the ten filled-in items (3.15) and locked the student adoption plan with its sources (3.14).
 - **11 Nov:** head-to-toe review. Findings: the next bus is rarely at the terminus early enough to pull forward; ORBIT hears about queues late; planning reports depend on door counters more than the app; the agent design and requirements were out of date. Decision 1 amended (spare waits nearby, confirmed trigger, whole-route count) and all remaining decisions locked the same evening. Real-world precedents collected.

@@ -59,10 +59,10 @@ async def receive_demand(signal: DemandSignal):
 | Endpoint | What it does |
 |---|---|
 | `POST /api/driver/load` | Driver taps about empty / half / full. |
-| `POST /api/driver/left-behind` | Driver taps "left people behind". |
+| `POST /api/driver/turned-away` | The driver's answer to the prompted question "Did you have to turn people away?": `yes`, `no` or `not_sure`. No answer is treated as unknown. |
 | `POST /api/driver/ack` | Driver answers an instruction: `ok` or `cant`. |
 | `POST /api/driver/status` | On break / back from break. |
-| `WS /ws/driver/{bus_id}` | Pushes instructions to the driver screen. |
+| `WS /ws/driver/{bus_id}` | Pushes instructions, and the turned-away question when the bus is full at a stop. |
 
 ### Bus data feeds
 
@@ -91,14 +91,14 @@ async def receive_demand(signal: DemandSignal):
   "type": "stop_state",
   "data": {
     "stop_id": "kdoj", "corridor_id": "E",
-    "waiting_app": 9, "left_behind": 0,
-    "expected": 22, "estimated_total": null,
+    "waiting_app": 9, "left_behind": 0, "left_behind_by_departure": {},
+    "expected": 22, "estimated_total": null, "app_share": null,
     "level": "MEDIUM", "flagged": false,
     "minutes_since_last_bus": 4
   }
 }
 ```
-`expected` is `null` at CP and Jalan Amal. `estimated_total` is `null` until the app share for that stop has been learned.
+Published on `stops/{corridor_id}/{stop_id}/state`. `expected` is `null` at CP and Jalan Amal. `estimated_total` and `app_share` are `null` until the app share for that stop has been learned. `left_behind` is the sum of `left_behind_by_departure`, whose keys each identify one trip of one bus. `minutes_since_last_bus` is added at send time.
 
 **Bus state**
 ```json
@@ -125,6 +125,7 @@ async def receive_demand(signal: DemandSignal):
   }
 }
 ```
+`confirmed_by` lists what confirmed it: `door_counter` or `driver_full` (the bus left full), and `app_vs_door_count`, `still_waiting_taps` or `driver_yes` (people were left).
 
 **Proposal (to the manager)**
 ```json
@@ -233,8 +234,9 @@ backend/
 │   ├── stop_agent.py           # built (Tasks 1–3), being reworked
 │   ├── bus_agent.py            # new
 │   └── coordinator.py          # new
+├── demand/                     # new — ORBIT's own schedule model (the `expected` number); not the simulator
 ├── simulation/
-│   ├── campus_graph.py         # built (Bus E, N24 path)
+│   ├── campus_graph.py         # built (Bus E, N24 path). Real route data — due to move out of simulation/ in Block 2
 │   ├── demand_engine.py        # new
 │   ├── injector.py             # new
 │   ├── scenarios.py            # new
@@ -254,6 +256,8 @@ backend/
 ├── tests/
 └── requirements.txt
 ```
+
+**`agents/` never imports from `simulation/`.** The simulator feeds the system through the same interfaces real sources use; agent code must not know it exists.
 
 The student app lives in `src/` and the dashboard in `dashboard/` at the repo root (`10_PROTOTYPE_STATUS.md`). `docs_modules/` mirrors these context modules.
 

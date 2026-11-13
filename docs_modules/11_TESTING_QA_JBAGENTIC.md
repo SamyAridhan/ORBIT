@@ -102,7 +102,7 @@ A second property worth the same treatment:
 
 Candidate approach: Hypothesis stateful testing (`RuleBasedStateMachine`) over the Coordinator, with rules for "overflow confirmed", "manager approves / skips / doesn't answer", "driver says OK / Can't / nothing", "trip ends". Then a flaky-test pass, since this is async, message-driven code. Tracked in Block 9's Testing Session (`12_BUILD_MILESTONES.md`); test cases TC117–TC119 and TC125 in `01_AGENT_DESIGN.md`.
 
-Smaller properties earlier in the build: the demand level never goes down when the count goes up (Block 1); one person is never counted at two stops at once (Block 1); in the whole-route count, people waiting = people boarded + people left (Block 4).
+Smaller properties earlier in the build: the demand level never goes down when the count goes up (Block 1); one person is never counted at two stops at once (Block 1); one token is never counted more than once at a stop and route, across any mix of "I'm waiting", "still waiting" and "changed bus" signals (Block 1); in the whole-route count, people waiting = people boarded + people left (Block 4).
 
 ---
 
@@ -151,7 +151,7 @@ Before this call, three reports were reviewed: coverage as a necessary-but-weak 
 Surfaced in the call but not answered. Worth keeping visible for the next conversation with Huiming rather than something to resolve solo:
 
 - What exact CI thresholds (coverage %, mutation kill rate, allowed flaky-test rate) should gate an agent PR merge?
-- How should tests tie back to requirements/specs, so an agent can check a test actually verifies a functional requirement — not just that it passes? (Spec-driven testing.) *(Nov 2026: ORBIT now has a concrete hook for this — every test case in `01` names a requirement ID from `claude/14_SYSTEM_REQUIREMENTS.md`. Worth showing Huiming.)*
+- How should tests tie back to requirements/specs, so an agent can check a test actually verifies a functional requirement — not just that it passes? (Spec-driven testing.) *(Nov 2026: ORBIT now has a concrete hook for this — every test case in `01` names a requirement ID from `14_SYSTEM_REQUIREMENTS.md`. Worth showing Huiming.)*
 - What CI strategy keeps mutation testing practical at PR-level for ORBIT specifically (targeted/diff mutation, sampling, parallelization)?
 - How much of this can be automated across different repo layouts/languages vs. needing repo-specific setup? (ORBIT spans Python + JS — a live test of exactly this question.)
 - Is there value in an LLM *executing* tests directly rather than generating test code — practical/measurable enough for production use?

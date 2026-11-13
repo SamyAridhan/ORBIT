@@ -2,8 +2,8 @@
 > **Load this file FIRST in every new chat session. It is the single source of truth.**
 > Rewritten 13 Nov 2026 after the whole-system design review (17 Oct – 11 Nov 2026). The design
 > Samy locked on 11 Nov is now written into every module. The decisions and their reasons are
-> recorded in `claude/ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md`; the real-world evidence is in
-> `claude/ORBIT_REAL_WORLD_PRECEDENTS.md`.
+> recorded in `ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md`; the real-world evidence is in
+> `ORBIT_REAL_WORLD_PRECEDENTS.md`.
 > Superseded: the July 2026 edition of this file (Hold + Early Departure, six-step Bus Agent
 > hierarchy, "interchange stops never signal"). Do not bring those rules back.
 
@@ -13,10 +13,10 @@
 
 - **PSM1 is complete and submitted.** The thesis is not edited.
 - **Now:** industrial training (Sept 2026 – Feb 2027). Development happens on weekends. PSM2 runs March – July 2027.
-- **Build:** Block 0 is on `main` (`8b005cc`). Block 1 Tasks 1–3 are built and pushed on `claude/funny-knuth-w6dibj` (`47262d8`). **The build is paused there.**
+- **Build:** Block 0 is on `main` (`8b005cc`). **The build resumed on 13 Nov 2026.** Coddy synced `docs_modules/` and reworked the Stop Agent to the new design: Task 1 kept; Tasks 2R, 3R and 9 built (reported `81b6e75` on `claude/funny-knuth-w6dibj`, pushed; 58 tests). Next: Block 1 Task 4.
 - **Design:** locked 11 Nov 2026. Modules updated 13 Nov 2026.
 - **13 Nov 2026, confirmed by Samy:** the small rules filled in while writing the modules (tracker 3.15), and the student adoption plan (below; tracker 3.14). New Project instructions are pasted in.
-- **Before the build resumes:** Coddy gets the module set for `docs_modules/` and the catch-up brief (`claude/CODDY_CATCHUP_BRIEF.md`), syncs, and reports back. The build then follows the replanned `12_BUILD_MILESTONES.md`.
+- **13 Nov 2026 (afternoon), refined with Samy after Coddy's sync report:** three ways to know people were left behind (the driver is asked, not expected to remember); a late "still waiting" tap always counts; holding needs real GPS (tracker 3.16–3.17).
 - **Before Block 4** (the first block that builds overflow handling): Samy confirms the spare-bus plan once more — his own condition.
 
 ---
@@ -83,6 +83,15 @@ A head-to-toe review found the July design assumed things it couldn't know (how 
 | Bus load comes from the app's manifest | Door counter → driver tap → rider taps. |
 | ETA uses queue-adjusted edge weights | ETA uses plain travel times plus any hold. |
 
+### 13 Nov 2026 — refinements (Samy, after Coddy's sync report)
+- **Knowing people were left behind — three ways:** (1) automatic: app count against door-counter boardings on a bus that left full; (2) students' "still waiting" taps; (3) the driver, **asked** "Did you have to turn people away?" when the bus is full — Yes / No / Not sure. The old optional "left people behind" button is gone: where reporting depends on a driver remembering, it gets under-used.
+- **A late "still waiting" tap always counts**, as one person. The one-signal-per-phone limit applies to "I'm waiting" only.
+- **Left-behind is recorded against the bus that left them.** A tap after a bus that had room confirms nothing.
+- **The smallest crowd worth an extra trip starts at 1** (placeholder).
+- **No holding unless both buses' positions come from GPS.**
+- **The "expected" number is ORBIT's own schedule model**, not the simulator's. Agent code never imports from the simulator.
+- **Accepted limit:** with no door counter, no app users and an unsure driver, ORBIT cannot know — it does nothing and the timetable runs. Real-life adoption is gradual, the way Uber's and Grab's was; the staged rollout exists for that.
+
 ---
 
 ## Principles — non-negotiable
@@ -90,10 +99,10 @@ A head-to-toe review found the July design assumed things it couldn't know (how 
 1. **ORBIT never takes away a departure students are counting on.** A spare bus adds capacity.
 2. **Buses stay on their routes.** No rerouting. A spare on an extra trip drives that route's normal path.
 3. **Arrival compression is not a real intervention.** Never reintroduce it.
-4. **Act on what's confirmed.** An extra trip needs a bus that really left full and people who are really still waiting. Predicting ahead is switched on only after the observation months show the predictions are right.
+4. **Act on what's confirmed.** An extra trip needs a bus that really left full and people who are really still waiting — known from door counts against app counts, from students' "still waiting" taps, or from the driver answering "Yes, I turned people away". Predicting ahead is switched on only after the observation months show the predictions are right.
 5. **The fleet manager stays in control.** One setting (ask first / automatic / off). Recommended default: ask first.
-6. **The driver can always say "Can't".** Instructions only while stopped, never during a break. Data is for planning, not for judging drivers.
-7. **The app is never required.** ORBIT works with zero app users because drivers and door counters report full buses. More app users makes it faster and better informed.
+6. **The driver can always say "Can't".** Instructions only while stopped, never during a break. The driver is asked, never expected to remember. Data is for planning, not for judging drivers.
+7. **The app is never required.** ORBIT works with zero app users because door counters report full buses and the driver is asked whether people were turned away. More app users makes it faster and better informed.
 8. **ORBIT builds the decision logic and the interfaces. Anything physical is a stated assumption**, played by the simulator in the demo (table below).
 9. **If ORBIT is down or wrong, buses run the timetable.**
 10. **The decision path is rule-based.** The only AI in it is the Isolation Forest check that flags strange counts. No ML or neural networks anywhere else in the control loop.
@@ -137,7 +146,7 @@ No outside consultation is planned. These are stated assumptions in the design. 
 
 - A shared spare pool exists (existing supplementary buses re-designated). A spare can wait at or near a busy terminus at peak.
 - Any driver can drive any route. Standby time is separate from breaks.
-- Buses have door counters, or drivers give a quick "how full / left people behind" tap.
+- Buses have door counters, or drivers tap how full the bus is. When it is full, the driver answers one prompted question ("turned people away?").
 - Drivers can receive instructions on a screen in the bus.
 - Seats per bus: 28 (placeholder).
 - Travel times and terminus waiting times in `02_GRAPH_AND_SIMULATION.md` are estimates.
@@ -156,7 +165,7 @@ Configurable, to tune during development. Never present them as settled, especia
 - Seats per bus: 28.
 - Hold: how close is "too close" to the bus ahead, and the longest hold (1–2 minutes is the idea).
 - The manager's answer timeout (N minutes).
-- How many left-behind people justify an extra trip (no value set yet).
+- How many left-behind people justify an extra trip (starts at 1).
 - Pool size and where spares wait.
 - The confidence needed before predicting ahead is switched on.
 - All travel times in `02`.
@@ -187,7 +196,7 @@ Full detail → `09_SUPERVISOR_PROJECT_REFERENCE.md`.
 
 ## Requirements and use cases
 
-The working list of what ORBIT must do is `claude/14_SYSTEM_REQUIREMENTS.md`.
+The working list of what ORBIT must do is `14_SYSTEM_REQUIREMENTS.md`.
 
 The PSM1 use case map (UC1–UC12) was accepted by the panel and is part of the submitted thesis. It is not edited, and it no longer matches the design (no Driver, Coordinator, approval, spare pool or reports). Module 14 maps each old use case to where it lives now. Redrawing the diagram for PSM2 is deferred to report-writing time.
 
@@ -200,7 +209,7 @@ The PSM1 use case map (UC1–UC12) was accepted by the panel and is part of the 
 | Student app | Frontend | React 18 + Vite PWA | Prototype built (old flow) |
 | Student app | Stop detection | Browser Geolocation + server-side geofence check | Prototype only |
 | Driver mode | Screen inside the PWA | React | Not built |
-| Backend | Agents | Python 3.12 (venv pinned to 3.12.10) | Stop Agent Tasks 1–3 built |
+| Backend | Agents | Python 3.11+ (suite has passed on 3.11.18 and 3.12.10; no repo pin) | Stop Agent state built (Tasks 1, 2R, 3R, 9) |
 | Backend | Messaging | Eclipse Mosquitto (MQTT), paho-mqtt 2.1.0 | Dependency only |
 | Backend | Route map | NetworkX 3.6.1 (DiGraph, Dijkstra) | Bus E, one path built |
 | Backend | Strange-count check | scikit-learn Isolation Forest | Not built |
@@ -208,7 +217,7 @@ The PSM1 use case map (UC1–UC12) was accepted by the panel and is part of the 
 | Dashboard | Frontend | React 18 + Vite | Static-replay prototype (old flow) |
 | Bus position | Sources | PAJ GPS → driver device → timetable estimate | Simulated |
 | Database | Persistence | SQLite | Not built |
-| Tests | Tooling | pytest, Hypothesis, MutPy or cosmic-ray | pytest in use (57 passing) |
+| Tests | Tooling | pytest, Hypothesis, MutPy or cosmic-ray | pytest in use (58 passing) |
 
 ---
 
@@ -248,9 +257,11 @@ Simulation scope: Bus B, E and F. Bus E is built first.
 | `11_TESTING_QA_JBAGENTIC.md` | Testing collaboration with Huiming, the one-job invariant | Test infrastructure |
 | `12_BUILD_MILESTONES.md` | Task-based build tracker | **Every build session** |
 | `13_GIT_PERSISTENCE_PROTOCOL.md` | Fetch at start, push at end, "reported" vs "confirmed" | Every build session |
-| `claude/14_SYSTEM_REQUIREMENTS.md` | What ORBIT must do, with IDs | Design, tests, PSM2 documents |
-| `claude/ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md` | The locked decisions and their reasons | "Why is it like this?" |
-| `claude/ORBIT_REAL_WORLD_PRECEDENTS.md` | Real transport systems that work this way | Justifying the design |
-| `claude/CODDY_CATCHUP_BRIEF.md` | The note that brings Claude Code up to date | When the build resumes |
+| `14_SYSTEM_REQUIREMENTS.md` | What ORBIT must do, with IDs | Design, tests, PSM2 documents |
+| `ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md` | The locked decisions and their reasons | "Why is it like this?" |
+| `ORBIT_REAL_WORLD_PRECEDENTS.md` | Real transport systems that work this way | Justifying the design |
+| `CODDY_CATCHUP_BRIEF.md` | The note that brings Claude Code up to date | When the build resumes |
 | `ARCHIVE_PSM1_REPORT_AND_PANEL.md` | Report conventions, viva Q&A logic | PSM2 report or viva prep only |
 | `README_MODULE_INDEX.md` | Map of the module set | Rarely |
+
+**File locations:** in the repo's `docs_modules/` every file sits flat, so the modules name files without a folder. In this Project, the files Chatty created sit under `claude/` (`claude/14_SYSTEM_REQUIREMENTS.md`, `claude/ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md`, `claude/ORBIT_REAL_WORLD_PRECEDENTS.md`, `claude/CODDY_CATCHUP_BRIEF.md`) — same files.
