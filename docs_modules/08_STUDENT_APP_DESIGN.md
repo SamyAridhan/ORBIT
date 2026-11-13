@@ -110,6 +110,8 @@ A web app cannot check location while it is closed. If the app is closed during 
 - **[Still waiting]** — stays in the count and is marked as left behind by the bus that just went.
   - **A late tap always counts.** Ali taps at 7:25 and pockets his phone. The 7:30 leaves full; ORBIT assumes he boarded. At 7:35 he taps "Still waiting" — ORBIT puts him back, as one person, left behind by the 7:30.
   - If that bus left with empty seats, he simply missed it: he stays in the count and no spare is sent.
+  - **If ORBIT has forgotten him, the tap still counts.** ORBIT keeps a tap for 30 minutes. If Ali's record has run out, or he taps "I'm waiting" again when he meant "Still waiting", he is put back as one person. The tap still has to pass the at-the-stop check.
+  - **Late, after a bus with room has come.** The 7:30 leaves Ali behind; the 7:40 has empty seats but he misses it; at 7:42 he taps. ORBIT records "left behind by the 7:30" for the timetable report, and sends no spare — a bus with room has just been. A bus is only blamed for someone who was already waiting when it left.
   - (The Transit app does the same thing: when a departure has passed and the rider is still at the stop, it asks what happened.)
 - **No answer = got on.** (Locked.) One exception: if the door counter shows the bus left full and fewer people boarded than app users were waiting, ORBIT keeps the difference as still waiting — nobody has to tap.
 - One person is one person. There is no extra weight for a "still waiting" tap.
@@ -206,7 +208,7 @@ The question: with no login, what stops one person sending 50 signals?
 A signal is accepted only if the phone's coordinates are within the stop's geofence. The check runs on the server. A hundred signals for KDOJ sent from a dorm room all fail it. The reply never says why, so the check can't be probed.
 
 ### Layer B — one token, one signal
-The app holds an anonymous random token in the browser. One token gives one accepted "I'm waiting" signal per stop, per route, per 30 minutes. A repeat is ignored silently. "Still waiting" and "changed bus" are updates to the same person: always accepted, never a second count. Clearing browser storage gives a new token — an accepted limit; the effort isn't realistic for a bus queue.
+The app holds an anonymous random token in the browser. One token gives one accepted "I'm waiting" signal per stop, per route, per 30 minutes. A repeat is ignored silently. "Still waiting" and "changed bus" are updates to the same person: always accepted, never a second count. The same 30 minutes is how long ORBIT remembers a tap; after that, a new tap is a fresh person, and a "Still waiting" from someone ORBIT has forgotten puts them back as one person. Clearing browser storage gives a new token — an accepted limit; the effort isn't realistic for a bus queue.
 
 ### Layer C — strange counts are flagged, not blocked
 If the count at a stop looks implausible for that place and time (more than three times the schedule-based expectation; later, an Isolation Forest check), ORBIT **flags it on the dashboard and keeps it**. A flagged count triggers nothing on its own. If the driver or the door counter agrees — the bus really did fill — ORBIT believes it.

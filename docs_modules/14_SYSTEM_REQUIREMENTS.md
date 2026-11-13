@@ -35,7 +35,7 @@
 - **S2** See when the next bus comes. If the position is only a timetable guess, it says "approximate".
 - **S3** See how full the coming bus is.
 - **S4** Be counted as waiting for a bus without logging in. The app is never required to ride.
-- **S5** After the bus passes, be asked "did you get on?" when the app is open. No answer means "got on". "Still waiting" tells ORBIT someone was left behind — and a late "still waiting" always counts, as one person.
+- **S5** After the bus passes, be asked "did you get on?" when the app is open. No answer means "got on". "Still waiting" tells ORBIT someone was left behind — and a late "still waiting" always counts, as one person, even if ORBIT had forgotten them.
 - **S6** When changing bus at CP or Jalan Amal, be counted for the second bus without tapping again.
 - **S7** Be told about an extra bus ("Extra Bus E at KDOJ, 7:32") and about a short hold ("holding 2 min").
 - **S8** Optionally tap how full the bus is while riding.
@@ -66,7 +66,7 @@
 - **R2** Know how full each bus is from the best source it has: door counter, then driver tap, then rider taps.
 - **R3** Know where each bus is from the best source it has: PAJ GPS, then the driver's device, then a timetable estimate.
 - **R4** Add up everyone waiting along a whole route against the seats on the coming bus.
-- **R5** Notice a confirmed overflow: a bus really left full **and** people are really still waiting. "Still waiting" is known three ways: the app count against door-counter boardings, students' taps, or the driver's "Yes". Each is recorded against the bus that left them.
+- **R5** Notice a confirmed overflow: a bus really left full **and** people are really still waiting. "Still waiting" is known three ways: the app count against door-counter boardings, students' taps, or the driver's "Yes". Each is recorded against the last bus that left full after they started waiting. Once a later bus has left that stop with room, the record is kept for planning but no spare is sent.
 - **R6** Answer a confirmed overflow with a spare bus when one can make it (see `01`):
   1. spare nearby — it leaves between the full bus and the next scheduled bus, the earlier the better;
   2. spare further away and the next bus is already at the terminus — the next bus leaves a few minutes early and the spare covers the original time;

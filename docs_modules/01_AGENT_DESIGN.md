@@ -15,6 +15,11 @@
 > departure; `expected` comes from ORBIT's own schedule model, not the simulator; no hold without
 > GPS on both buses. The names of topics, events and endpoints are proposals Coddy may adjust;
 > numbers marked placeholder are set at build time.
+> **Further rulings, 13 Nov 2026 (after Coddy's Task 4 report):** any tap from a person ORBIT has
+> lost track of puts them back as one person; a left-behind is recorded against the last bus that
+> left **full** after the student started waiting, but sends no spare once a later bus with room
+> has passed; one 30-minute setting for both the record's life and the one-signal-per-token window;
+> the departure-facts contract between the three agents is written down.
 
 ---
 
@@ -63,7 +68,11 @@ Keep the count of who is waiting at its stop for its route, and publish that sta
 **One phone is one person.** The anonymous token rule (`08_STUDENT_APP_DESIGN.md`):
 - An `initial` signal ("I'm waiting") is accepted once per token, per stop, per route, per 30 minutes. A repeat is ignored silently.
 - `still_waiting` and `transfer` are **updates about a person ORBIT already knows**. They are always accepted, and they never add a second person.
+- **Any tap from a person ORBIT has lost track of puts them back, as one person.** A `still_waiting` from a token whose record has expired (or was never received) creates the record. An `initial` from a token ORBIT had assumed boarded restores it, exactly like a "still waiting". Expiry is bookkeeping, not evidence that nobody is there. Every such tap still has to pass the at-the-stop location check.
+- One 30-minute setting (placeholder): it is both how long a record lives and the one-signal-per-token window. While the record exists a repeat `initial` changes nothing; after it has expired, a new `initial` is a fresh person.
 - Invariant: one token is never counted more than once at a stop and route.
+
+Built shape (Coddy, Task 4): one record per token in a book per stop and route, with a status (`WAITING` / `ASSUMED_BOARDED` / `LEFT_BEHIND`). The invariant is then a property of the data structure. The record keeps **two times**: when the student started waiting (never refreshed — it decides which buses could have left them behind) and when they were last heard from (refreshed by a tap — it drives expiry).
 
 ### When a signal stops counting
 - The student's bus leaves and they don't say "still waiting" → assumed boarded, removed. (No answer = boarded. Locked.)
@@ -72,9 +81,18 @@ Keep the count of who is waiting at its stop for its route, and publish that sta
 - The signal gets too old (30 minutes is the starting value; placeholder).
 
 ### Who was left behind — the Stop Agent's part
-- "Still waiting" taps are recorded **against the departure that left them** (`left_behind_by_departure`). A tap attaches to the most recent departure of that route from that stop.
-- **If that bus did not leave full, the tap confirms nothing.** The student simply missed a bus that had room: they stay in the waiting count, and no spare is sent.
-- The Stop Agent only records. The Coordinator puts this together with the other two ways of knowing people were left behind — the app count against door-counter boardings, and the driver's answer — see "The trigger". For one departure the number is the **largest** of the sources, never their sum.
+**The record (for the planning report):**
+- A "still waiting" tap is recorded against **the most recent departure of that route from that stop that left full after the student started waiting** (`left_behind_by_departure`).
+- A bus can only have left behind someone who was already waiting when it left. A student who arrived at 7:35 was not left by the 7:30.
+- If no bus has left full since the student started waiting, the tap confirms nothing. They simply missed a bus that had room: they stay in the waiting count.
+
+**The trigger (for a spare, decided by the Coordinator):**
+- A left-behind crowd asks for a spare only **until a later bus of that route has left that stop with room**. After that the crowd could have boarded, so no spare is sent.
+- *Example:* the 7:30 leaves full and leaves Ali. The 7:40 comes with empty seats; Ali misses it. At 7:42 he taps "Still waiting". The record says "left behind by the 7:30" — true, and useful for the timetable report. No spare is sent — a bus with room has just been.
+
+**A snapshot per departure.** When a bus leaves, the Stop Agent keeps, for that departure: how many app users were waiting at that moment, whether that count was flagged as strange, and the "still waiting" taps that arrive later. The live count changes straight after (people removed as boarded, new arrivals), so the Coordinator needs this fixed number to compare with door-counter boardings (Way 1).
+
+The Stop Agent only records. The Coordinator puts this together with the other two ways of knowing people were left behind — see "The trigger". For one departure the number is the **largest** of the sources, never their sum.
 
 ### Demand level — a colour, nothing more
 
@@ -130,7 +148,7 @@ estimated_total: int | None   # None until the app share is learned
 app_share: float | None
 level: DemandLevel            # display only
 flagged: bool
-last_bus_visit_time: datetime
+last_bus_visit_time: datetime | None   # None until a bus has visited
 ```
 
 ### Rules
@@ -231,6 +249,19 @@ scheduled_departure: datetime | None
 current_job_id: str | None    # spare only
 ```
 
+### Departure facts — the contract between the three agents
+Every time a bus leaves a stop, these facts exist. Tests on any one agent fake the others' parts with this shape, so all three are built to it.
+
+| Fact | Owner | Notes |
+|---|---|---|
+| `departure_id` | Bus Agent | Identifies one trip of one bus. Must also work for a spare's extra trip, which has no timetable slot. Format settled in Block 3; treated as an opaque string until then. |
+| `bus_id`, `corridor_id`, `stop_id`, `departed_at` | Bus Agent | |
+| `left_full` | Bus Agent | Door counter at the seat count, or the driver tapped "full" |
+| `boarded` | Bus Agent | From the door counter; `None` when the bus has none |
+| `turned_people_away` | Bus Agent | `"yes"` / `"no"` / `"not_sure"` / `None`. `"no"` and unknown (`"not_sure"`, `None`) must stay distinguishable |
+| `waiting_at_departure`, `flagged_at_departure` | Stop Agent | The snapshot taken as the bus leaves |
+| `still_waiting_taps` | Stop Agent | Taps recorded against this departure |
+
 ### If the broker or the Coordinator is down
 The bus runs its timetable. No instruction is left hanging. (N8)
 
@@ -293,6 +324,15 @@ Any one of the three confirms it. "At least" in Way 1 is deliberate: the counter
 **Predicting ahead comes later.** Sending the spare *before* a bus fills, from app numbers alone, is switched on only after the observation months show the predictions are right. It is a config switch, off by default.
 
 **How big is the crowd:** the largest number any of the three ways gives. A driver's "Yes" has no number; it always counts as enough to act on.
+
+```python
+left_behind = max(way1_app_minus_boarded,        # 0 when there is no door counter or the count was flagged
+                  way2_still_waiting_taps,
+                  threshold if driver_said_yes else 0)
+```
+A driver's "No" does not cancel students' taps — they say they are there. A disagreement between sources is logged for the observation cross-check.
+
+**An overflow closes** once a later bus of that route has left that stop with room: the people could have boarded. Late evidence for a closed overflow is still recorded for the planning report; it sends no spare.
 
 **Smallest crowd worth an extra trip:** starts at **1** (placeholder). The manager's approval is the real filter; the number can be raised once the observation data shows what is sensible.
 
@@ -489,7 +529,7 @@ requirement in module 14. Wording can be sharpened as each block is built.
 | TC | Input | Expected | Req |
 |---|---|---|---|
 | TC142 | Student signals; the bus leaves full; no answer, so removed as boarded; 5 minutes later taps "still waiting" | Back in the count as one person, recorded against that departure | S5 |
-| TC143 | "Still waiting" tap after the most recent bus left with empty seats | Stays in the waiting count; confirms no overflow; no extra trip | R5 |
+| TC143 | "Still waiting" tap when no bus has left full since the student started waiting | Stays in the waiting count; confirms no overflow; no extra trip | R5 |
 | TC144 | 10 app users waiting at KDSE; door counter: 3 boarded, bus now 28/28; nobody taps anything | Overflow confirmed automatically: at least 7 left behind. If 5 of them also tap "still waiting", it is still 7 — the largest, not the sum | R5 |
 | TC145 | Same as TC144, but the count is flagged as strange | Not used for the automatic check | N4 |
 | TC146 | Bus is full at a stop | The driver screen asks "turned people away?" by itself; "Not sure" or no answer is recorded as unknown, never as "nobody left" | D1 |
@@ -497,6 +537,11 @@ requirement in module 14. Wording can be sharpened as each block is built.
 | TC148 | Zero app users, no door counter; the driver answers "Not sure" | No extra trip; `LEFT_FULL_UNCONFIRMED` logged | N7 |
 | TC149 | A bus catches up at a control point at peak; one of the two positions is a timetable estimate | No hold | R9 |
 | TC150 | Any sequence of `initial`, `still_waiting` and `transfer` taps from one token | That token is never counted more than once at a stop and route | S4 |
+| TC151 | `still_waiting` from a token whose record expired (or was never received) | A record is created; counted as one person | S5 |
+| TC152 | `initial` from a token ORBIT had assumed boarded | Restored like a "still waiting"; one person, never two | S5 |
+| TC153 | The 7:30 leaves full; the 7:40 leaves with room; a student waiting since 7:25 taps "still waiting" at 7:42 | Recorded as left behind by the 7:30; no extra trip, because a bus with room has passed | R5 |
+| TC154 | The 7:30 leaves full; a student who started waiting at 7:35 taps "still waiting" | Not recorded against the 7:30 | R5 |
+| TC155 | Driver answers "No"; 5 students tap "still waiting" after a full departure | Confirmed with 5; the disagreement is logged | R5 |
 
 ### What happened to TC01–TC17
 

@@ -24,7 +24,7 @@
 
 ## 1. Build status
 - Block 0 complete and on `main`. Block 1 Tasks 1–3 built and pushed (`47262d8`): demand levels, broadcast decision, interchange gate.
-- **The build resumed on 13 Nov 2026.** Coddy synced the docs and reworked the Stop Agent (Tasks 2R, 3R and 9; reported `81b6e75`, pushed; 58 tests). Next: Block 1 Task 4.
+- **The build resumed on 13 Nov 2026.** Coddy synced the docs, reworked the Stop Agent (Tasks 2R, 3R and 9; `81b6e75`, confirmed) and built Task 4, the waiting count from app taps (`419bff0`, reported and pushed; 76 tests). Next: Block 1 Task 5.
 - Effect of the locked design on what's built: Task 1 (levels) stays, as display only. Task 2 (broadcast rules) changes: stops report all the time. Task 3 (interchange gate) changes: app signals at CP / Jalan Amal now count (3.6).
 - `12_BUILD_MILESTONES.md` was replanned on 13 Nov into Blocks 0–13 (core-first). First task on resume: Block 1 Task 2R.
 
@@ -208,6 +208,10 @@ Raised by Coddy's sync report (a late "still waiting" tap would have been droppe
   2. *Students* — "still waiting" taps.
   3. *Driver, asked* — when the bus is full at a stop the screen asks "Did you have to turn people away at the door?" Yes / No / Not sure. The optional "left people behind" button is removed.
 - Per departure, take the **largest** source, never the sum. A driver's "Yes" counts for both halves of the trigger. "Not sure" or silence is "unknown", never "nobody".
+- **Two more rulings the same afternoon (raised by Coddy's Task 4 report):**
+  - *ORBIT has forgotten Ali, and then he taps.* A record lives 30 minutes. A "still waiting" from someone whose record has run out — or an "I'm waiting" tapped again by someone ORBIT assumed had boarded — puts them back, as one person. The tap still passes the at-the-stop check.
+  - *Ali taps late, after a bus with room has come.* The 7:30 leaves him; the 7:40 has seats but he misses it; at 7:42 he taps. **Record it against the 7:30** (true, and the report needs it). **Send no spare** (a bus with room has just been). A bus is only blamed for someone already waiting when it left.
+  - One 30-minute setting serves as both the record's life and the one-signal-per-phone window (Chatty's call, technical).
 - **Accepted limit:** no door counter + no app users + an unsure driver → ORBIT cannot know; it does nothing and the timetable runs. Samy: there is no other way; in real life this gets adopted gradually, as Uber did.
 - Evidence (precedents file, section 6): Transit app asks riders after a departure has passed; Winnipeg drivers log pass-ups with a button; Vancouver uses pass-up data to add service; Calgary shows a memory-based driver button gets under-used; a Pittsburgh study shows door counters err too, so no single source is trusted alone. The exact one-phone-one-person rule is ORBIT's own — no source publishes how they de-duplicate.
 

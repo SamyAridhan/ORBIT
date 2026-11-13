@@ -94,11 +94,11 @@ async def receive_demand(signal: DemandSignal):
     "waiting_app": 9, "left_behind": 0, "left_behind_by_departure": {},
     "expected": 22, "estimated_total": null, "app_share": null,
     "level": "MEDIUM", "flagged": false,
-    "minutes_since_last_bus": 4
+    "last_bus_visit_time": "2026-11-16T07:18:00+08:00"
   }
 }
 ```
-Published on `stops/{corridor_id}/{stop_id}/state`. `expected` is `null` at CP and Jalan Amal. `estimated_total` and `app_share` are `null` until the app share for that stop has been learned. `left_behind` is the sum of `left_behind_by_departure`, whose keys each identify one trip of one bus. `minutes_since_last_bus` is added at send time.
+Published on `stops/{corridor_id}/{stop_id}/state`. `expected` is `null` at CP and Jalan Amal. `estimated_total` and `app_share` are `null` until the app share for that stop has been learned. `left_behind` is the sum of `left_behind_by_departure`, whose keys each identify one trip of one bus. `last_bus_visit_time` is `null` until a bus has visited; the dashboard works out "minutes since the last bus" from it.
 
 **Bus state**
 ```json
