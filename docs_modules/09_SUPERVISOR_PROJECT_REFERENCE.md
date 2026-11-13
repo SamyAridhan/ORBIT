@@ -1,7 +1,11 @@
 # Module 09 — Supervisor's Real Research Project & ORBIT's Position Within It
-> Updated May 2026. Load this alongside 00_MASTER_CONTEXT.md every session.
+> Updated May 2026; **updated 13 Nov 2026** to the design locked on 11 Nov 2026.
 > This module captures the PAJ-funded UTM Smart Bus project led by Dr. Sim's team,
 > what it covers, what it doesn't, and exactly where ORBIT stands in relation to it.
+> What changed on 13 Nov: ORBIT's position is now "demand picture + fleet decision support"
+> (not "autonomous dispatch timing"); bus position has a three-step source order; a separate
+> ORBIT student app is confirmed as fine; the report paragraphs further down are marked as PSM1
+> wording. The facts about the PAJ project itself are unchanged.
 
 ---
 
@@ -99,15 +103,15 @@ This is the critical section. Read it before every report writing session.
 | Gap | Why It Matters for ORBIT |
 |---|---|
 | No demand sensing from students | They track buses. They don't track student waiting queues. No mechanism exists to know how many students are at a stop. |
-| No dispatch timing decisions | The system shows ETAs based on GPS. It does not ask: "should this bus leave earlier?" |
-| No autonomous agent coordination | No bus-to-bus or bus-to-stop communication. Central server, not distributed agents. |
-| No demand-responsive behaviour | The bus runs its schedule. The system just displays where it is. GPS makes it visible, not intelligent. |
+| No fleet decision support | The system shows ETAs based on GPS. It does not say: "a bus just left 7 people behind at KDSE — send the spare?" |
+| No agents | Central server. No stop, bus or coordinator logic acting on demand. |
+| No response to demand | The bus runs its schedule. The system displays where it is. |
 | No queue awareness at stops | PIDS screens show ETA. They don't know if 3 students or 40 students are waiting. |
-| No student demand capture | Students are passive consumers of bus location data. They cannot signal demand. |
-| No boarding prompt | No mechanism to confirm boarding or re-signal after a missed bus. |
-| No claim-lock coordination | Multiple buses on same corridor have no awareness of each other's dispatch decisions. |
+| No student demand capture | Students are passive consumers of bus location data. They cannot say where they are going. |
+| No "left behind" signal | Nothing confirms that people could not board. |
+| No planning evidence on demand | GPS history shows where buses were, not who was waiting or left behind. |
 
-**One-line summary:** Their project answers *"Where is the bus?"* ORBIT answers *"What should the bus DO about where the students are?"*
+**One-line summary:** Their project answers *"Where is the bus?"* ORBIT answers *"Where are the people, and what should Fleet do about it?"*
 
 ---
 
@@ -125,36 +129,41 @@ PAJ Project Output (2026-2028):
     Fleet dashboard (location + ETA)
     Passenger mobile app (location + ETA)
     ↑
-ORBIT (your FYP — the intelligence layer):
-    Student demand signals → MAS coordination → Dispatch timing decisions
-    Stop Agents + Bus Agents + MQTT
-    Demand-responsive timing without changing routes
-    Fleet dashboard with decision log + override
-    Student app with demand submission + ETA + capacity
+ORBIT (your FYP — the demand and decision layer):
+    Students' trip requests + door counts + driver taps → live demand picture
+    Stop Agents + Bus Agents + Coordinator + MQTT
+    A shared spare bus for a confirmed overflow; short holds for spacing; no route changes
+    Fleet dashboard: live view, one-tap approval, decision log, planning reports
+    Student app: destination, which bus, when, will I fit; driver mode for instructions
 ```
 
-ORBIT is not competing with their project. ORBIT is the **autonomous coordination intelligence** that their tracking infrastructure enables but does not provide.
+ORBIT is not competing with their project and does not "improve on" it. ORBIT is the **demand sensing and fleet decision support** that their tracking infrastructure enables but does not provide.
+
+### A separate ORBIT app is fine (agreed 17 Oct 2026)
+ORBIT's student app builds on PAJ's GPS and ETA and adds demand and decision support. The risk: students who use PAJ's passenger app are invisible to ORBIT. Two answers: ORBIT's `/api/demand` stays open to signals from other apps, and ORBIT's app has to be useful enough that students choose it (`08_STUDENT_APP_DESIGN.md`).
 
 ### The GPS Feed Relationship
-Their project's GPS tracker output → MQTT/API feed → ORBIT's `GPSBasedETA` pluggable module.
+ORBIT takes each bus's position from the best source available:
 
-This is not hypothetical. Your architecture explicitly designed for this swap-in:
-```python
-# PSM2: schedule-based (no GPS hardware yet)
-eta_calculator = ScheduleBasedETA()
+1. **PAJ GPS feed** — where it exists
+2. **GPS from the driver's device** (the phone or tablet running driver mode)
+3. **A timetable estimate** — shown everywhere as "approximate"
 
-# Post-PSM2: when PAJ project GPS feed is live
-eta_calculator = GPSBasedETA()  # plug in their feed, no other changes
-```
+Where PAJ's own ETA exists, ORBIT uses it; otherwise ORBIT adds up plain travel times.
 
-The architecture is ready for their infrastructure. Their infrastructure is coming. ORBIT is the piece that makes it smart rather than just visible.
+**Open risk — raise it whenever GPS integration planning comes up:** PAJ Phase 1 (the POC) covers only the KP–CP route. ORBIT's modelled routes are Bus B, E and F. Until Phase 2, ORBIT's routes rely on sources 2 and 3. In the FYP demo the simulator plays the position feed.
 
 ### Why Dr. Sim Supervised You Into This Space
 Dr. Sim is on the PAJ project team. He knows exactly what that project delivers and what it doesn't. He put you in this space precisely because he knows the demand-response coordination gap exists and his own funded project doesn't fill it. Your FYP is the research exploration of that gap.
 
 ---
 
-## How to Use This in Your Report
+## How to Use This in Your Report *(PSM1 wording — rewrite for PSM2)*
+
+> **Note (13 Nov 2026):** the paragraphs in this section are the PSM1 framing ("dispatch
+> coordination", "demand-responsive timing decisions", a "pluggable ETA calculator"). The
+> complementary-layers framing is still right and still locked. The wording about what ORBIT
+> does must be redrafted from the current design when the PSM2 report is written.
 
 ### Chapter 1 — Problem Background
 Reference the PAJ project as **institutional validation** of the problem:
@@ -216,5 +225,6 @@ Their project uses gradient boosting ML (LightGBM/XGBoost) for ETA prediction. O
 | Stop displays | PIDS screens (~RM5,000/unit) |
 | End goal | Integration into UTMSMART via UTM Digital |
 | Commercialisation ref | MBJB Smart Bus Stop, 100,000+ users/month |
-| What it does NOT do | Demand sensing, MAS coordination, autonomous dispatch decisions |
-| ORBIT's relationship | Coordination intelligence layer above their tracking infrastructure |
+| What it does NOT do | Demand sensing, agents, fleet decision support on demand |
+| ORBIT's relationship | Demand and decision-support layer above their tracking infrastructure |
+| Phase 1 coverage risk | KP–CP only — not Bus B / E / F |

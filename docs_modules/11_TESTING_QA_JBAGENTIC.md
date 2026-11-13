@@ -6,6 +6,12 @@
 > answered in this call; see inline notes below for what carried forward unresolved.
 > Load this when working on test infrastructure, coverage/mutation/property-based testing setup, or
 > anything involving the JB Agentic collaboration.
+> **Updated 13 Nov 2026:** ORBIT's design was replaced on 11 Nov 2026. The testing approach is
+> unchanged; the *test targets* moved. The Bus Agent constraint hierarchy and the stop claim-lock
+> no longer exist. The rule-heavy logic is now the Coordinator (whole-route count, confirmed
+> overflow, the three spare-bus cases, the approval flow), and the concurrency invariant is
+> "one spare, at most one job; one overflow, at most one response". What Huiming and Samy said
+> on 26 Aug is kept as said; notes marked "(Nov 2026)" map it to the current design.
 
 ---
 
@@ -71,26 +77,32 @@ This requires CI-visible, enforceable numeric thresholds (coverage %, mutation k
 
 Agreed reasons ORBIT (specifically the Python MAS backend, once it exists) is a good testbed:
 
-- **Deterministic, branch-heavy rule logic** — capacity thresholds, scheduling constraints. This is the Bus Agent constraint hierarchy (`01_AGENT_DESIGN.md`).
-- **Priority/resource contention among agents** — named explicitly in the call: *"resource claim conflicts where multiple agents try to claim the same bus stop."* This is the Stop Agent claim-lock / Bus Agent race condition already documented in `01_AGENT_DESIGN.md`.
+- **Deterministic, branch-heavy rule logic** — capacity thresholds, scheduling constraints. *(Nov 2026: this is now the Coordinator's rules — the whole-route count, the confirmed-overflow trigger, the three spare-bus cases, the manager's setting and timeout — plus the Bus Agent's source-priority and hold rules. See `01_AGENT_DESIGN.md`.)*
+- **Priority/resource contention among agents** — named explicitly in the call: *"resource claim conflicts where multiple agents try to claim the same bus stop."* *(Nov 2026: the contended resource is now the spare bus. Two overflows can want the same spare; one overflow can be reported twice.)*
 
 **Confirmed ORBIT-testbed use cases:**
 1. Branch/line coverage improvements
 2. Property-based tests expressing invariants — capacity constraints, and **no double-claim of the same resource** (new, concrete — see below)
 3. Mutation testing to validate whether generated tests catch injected faults
-4. **Agent-to-agent coordination tests** — concurrency / ordering / flakiness, specifically on the Bus Agent claim-lock race
+4. **Agent-to-agent coordination tests** — concurrency / ordering / flakiness, specifically on the spare-assignment race *(Nov 2026; was "the Bus Agent claim-lock race")*
 
-**Scope clarification confirmed by this call:** "agent-to-agent coordination tests" here means **ORBIT's own Stop Agent / Bus Agent MQTT coordination**, tested with concurrency-focused techniques (flaky-test detection, ordering randomization). This is a different concern from "managing tasks across multiple coding agents" (Claude → Codex handoffs), which is about how JB Agentic's *skills themselves* get built and chained, not about ORBIT's runtime code. Both are real and both matter — this call's substance was about the first one. The second remains open, unresolved by this session (see the pre-meeting deck for that context).
+**Scope clarification confirmed by this call:** "agent-to-agent coordination tests" here means **ORBIT's own Stop Agent / Bus Agent / Coordinator MQTT coordination**, tested with concurrency-focused techniques (flaky-test detection, ordering randomization). This is a different concern from "managing tasks across multiple coding agents" (Claude → Codex handoffs), which is about how JB Agentic's *skills themselves* get built and chained, not about ORBIT's runtime code. Both are real and both matter — this call's substance was about the first one. The second remains open, unresolved by this session (see the pre-meeting deck for that context).
 
 ---
 
-## New Concrete Test Target: No-Double-Claim Invariant
+## Concrete Test Target: the One-Job Invariant (replaces "no double claim")
 
-Worth stating formally since it's new and specific — a property-based / concurrency test target for the Stop Agent claim-lock, once that code exists:
+The August version of this target was "at most one Bus Agent may hold the claim for a stop". That claim-lock no longer exists. The invariant with the same shape in the current design:
 
-> **Invariant:** for any given stop+corridor broadcast, at most one Bus Agent may hold the claim at any time. If two Bus Agents attempt to claim concurrently, exactly one succeeds and the other observes the claim already held — never both, never neither.
+> **Invariant:** one spare gets at most one job at a time, and each overflow gets at most one response. If two overflows want the same spare at the same moment, exactly one gets it and the other is told no spare is available — never both. If the same overflow is reported twice (driver tap and "still waiting" taps), it is answered once.
 
-Candidate approach: Hypothesis stateful/model-based testing (`RuleBasedStateMachine`), or a dedicated concurrency test once the MQTT claim-lock mechanism (`01_AGENT_DESIGN.md`) is implemented. Add to the eventual test plan for that module.
+A second property worth the same treatment:
+
+> **No departure is taken away:** across any sequence of overflows, approvals, refusals and timeouts, no scheduled departure is removed or made later by an overflow response; and a scheduled bus is told to leave early only after a spare's driver has accepted the job of covering the original time.
+
+Candidate approach: Hypothesis stateful testing (`RuleBasedStateMachine`) over the Coordinator, with rules for "overflow confirmed", "manager approves / skips / doesn't answer", "driver says OK / Can't / nothing", "trip ends". Then a flaky-test pass, since this is async, message-driven code. Tracked in Block 9's Testing Session (`12_BUILD_MILESTONES.md`); test cases TC117–TC119 and TC125 in `01_AGENT_DESIGN.md`.
+
+Smaller properties earlier in the build: the demand level never goes down when the count goes up (Block 1); one person is never counted at two stops at once (Block 1); in the whole-route count, people waiting = people boarded + people left (Block 4).
 
 ---
 
@@ -106,7 +118,7 @@ Before this call, three reports were reviewed: coverage as a necessary-but-weak 
 
 **What this call added beyond the reports:**
 - A concrete PR-based agent lifecycle with enforced CI thresholds — the reports covered *techniques*; this call covered the *workflow* those techniques sit inside.
-- The claim-lock race condition named as a specific, real ORBIT test target — the reports were generic; this ties directly to ORBIT's actual architecture.
+- The claim-lock race condition named as a specific, real ORBIT test target — the reports were generic; this ties directly to ORBIT's actual architecture. *(Nov 2026: now the spare-assignment race — same kind of target.)*
 - The "software factory" / downstream-gate-first framing as the *strategic reason* testing comes first — not covered in the reports.
 - A productization angle (open-source tooling now, consulting/training later as the monetization path) — business context, not technical, but useful to know why Huiming is investing time here.
 
@@ -128,7 +140,7 @@ Before this call, three reports were reviewed: coverage as a necessary-but-weak 
 - Will share research notes, tools, and reference links as they develop.
 
 **Joint:**
-- ORBIT confirmed as a live testbed for: coverage, the mutation feedback loop, flaky detection, property-based testing, and agent-coordination (claim-lock) testing.
+- ORBIT confirmed as a live testbed for: coverage, the mutation feedback loop, flaky detection, property-based testing, and agent-coordination testing (claim-lock in August; the one-job invariant since Nov 2026).
 - Reconvene ad-hoc — no fixed schedule.
 - If early results are promising: incremental open-source release of discrete skills/plugins (e.g., "a plugin that sets up coverage + mutation checks and agent scaffolding").
 
@@ -139,7 +151,7 @@ Before this call, three reports were reviewed: coverage as a necessary-but-weak 
 Surfaced in the call but not answered. Worth keeping visible for the next conversation with Huiming rather than something to resolve solo:
 
 - What exact CI thresholds (coverage %, mutation kill rate, allowed flaky-test rate) should gate an agent PR merge?
-- How should tests tie back to requirements/specs, so an agent can check a test actually verifies a functional requirement — not just that it passes? (Spec-driven testing.)
+- How should tests tie back to requirements/specs, so an agent can check a test actually verifies a functional requirement — not just that it passes? (Spec-driven testing.) *(Nov 2026: ORBIT now has a concrete hook for this — every test case in `01` names a requirement ID from `claude/14_SYSTEM_REQUIREMENTS.md`. Worth showing Huiming.)*
 - What CI strategy keeps mutation testing practical at PR-level for ORBIT specifically (targeted/diff mutation, sampling, parallelization)?
 - How much of this can be automated across different repo layouts/languages vs. needing repo-specific setup? (ORBIT spans Python + JS — a live test of exactly this question.)
 - Is there value in an LLM *executing* tests directly rather than generating test code — practical/measurable enough for production use?
@@ -151,6 +163,12 @@ Surfaced in the call but not answered. Worth keeping visible for the next conver
 - Excalidraw diagram (Huiming, shared in this call): https://excalidraw.com/#json=SFjVytcm2B6EwbmHQ9Lbx,NsTc_cdN1YWjuvs5jjq89Q
 - "Factory AI" — referenced as an existing "software factory" / early coding-agent-with-monitoring concept (name only, not independently verified).
 - Stripe "Minion" — referenced as a production example of agent-assisted development (name only, not independently verified).
+
+---
+
+## A Note for Huiming's Thread: the Design Review as a Gate (Nov 2026)
+
+The whole-system review (17 Oct – 11 Nov 2026) replaced ORBIT's agent design before most of it was built. Three Stop Agent tasks had been built and unit-tested to the old spec; two of them need rework. That is a small, real example of the "downstream gate" idea one level up: tests that rigorously verify the wrong behaviour are false confidence, so the question "does the spec say the right thing about the real world?" has to be asked before the mutation run, not after. The Block 1 Testing Session was deliberately not run on the old Stop Agent for this reason.
 
 ---
 

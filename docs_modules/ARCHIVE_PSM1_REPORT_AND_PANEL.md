@@ -4,6 +4,9 @@
 > This file keeps only what's still useful going forward: citation/report conventions if PSM2 extends the
 > same document, and Q&A logic that's reusable for the eventual PSM2 viva.
 > Load this only if report writing or viva prep comes up — not for day-to-day build work.
+> **Updated 13 Nov 2026:** the design was replaced on 11 Nov 2026. Answers below that described
+> the old design (spam prevention, "on-time bus with high demand ahead") are rewritten; new
+> answers are added for the questions the new design will draw. Report conventions are unchanged.
 
 ---
 
@@ -22,23 +25,38 @@
 
 These are reusable answers — the underlying reasoning holds regardless of which panel or viva they're used in. Update numbers/dates if asked again in PSM2, but the logic doesn't change.
 
-**"Why use agents instead of a simple scheduler?"**
-> A centralised scheduler needs complete real-time knowledge of the whole network to decide anything; any communication failure takes down the whole system. With agents, each bus and stop has local knowledge and local decision-making, and coordination emerges from message passing. It's also more extensible — a new corridor means two new agents, not a redesign of central logic.
+**"Why use agents instead of one program?"**
+> Each stop and each bus owns its own state and rules, and a small Coordinator owns the one thing that has to be shared — the spare pool. A new bus is a new record, not new code. And if the Coordinator or the message broker goes down, every bus simply runs its timetable — the system degrades to today's service, not to nothing.
 
 **"How does ORBIT relate to the PAJ project?"**
-> The PAJ project delivers GPS tracking and ETA prediction — it solves bus visibility. ORBIT is the coordination intelligence layer above that — it solves bus intelligence. They're complementary: ORBIT is designed to consume the PAJ project's GPS feed directly through a pluggable ETA calculator, no architectural changes required when that feed goes live.
+> The PAJ project delivers GPS tracking and ETA prediction — "where is the bus?". ORBIT adds the demand side — "where are the people, and what should Fleet do about it?". They're complementary: ORBIT takes bus position from PAJ's GPS where it exists, from the driver's device where it doesn't, and from the timetable as a last resort.
 
 **"Why not LightGBM/XGBoost like the PAJ project?"**
-> The PAJ project trains on months of real GPS operational data — that data exists because collecting it is in their scope. ORBIT is in the pre-data phase; training on simulated data would be circular. Graph-based ETA is adequate for a fixed-route, low-traffic-variance campus shuttle. The pluggable `ETACalculator` interface supports an ML swap-in once real data accumulates.
+> The PAJ project trains on months of real GPS operational data — that data exists because collecting it is in their scope. ORBIT is in the pre-data phase; training on simulated data would be circular. Adding up plain travel times is adequate for a fixed-route, low-traffic campus shuttle, and where PAJ's own ETA exists ORBIT uses it.
 
 **"How do you prevent spam demand signals without login?"**
-> Three layered controls: geofence validation (GPS must be within 80m of the declared stop), session token rate limiting (one accepted signal per stop/corridor per 30 min, same pattern as CMU's Tiramisu), and an Isolation Forest plausibility filter in the Stop Agent. myUTM login integration is documented as future work.
+> Three layers: a server-side check that the phone is at the stop (coordinates are used for the check and discarded), one accepted signal per anonymous token per stop and route per 30 minutes, and a strange-count check that flags an implausible number on the dashboard without deleting it. But the real protection is the trigger: ORBIT only sends an extra bus when a bus has really left full and people are really still waiting — fake signals alone can't move a bus. myUTM login is future work.
 
 **"Why not machine learning for the coordination logic itself?"**
-> No training data exists — UTM hasn't published APC/boarding records, so any model would train on simulation, which is circular. Rule-based coordination is sufficient per Daganzo & Pilachowski (2011), who showed cooperative headway control rules achieve 53–78% variance reduction. ML framing would also shift the project toward research-track evaluation (CGPA 3.30 requirement), which this project isn't positioned for.
+> No training data exists — UTM hasn't published APC/boarding records, so any model would train on simulation, which is circular. The decisions are simple enough for rules: count a route against the seats on the coming bus; send a spare when a bus has really left people behind; hold a bus that has caught up with the one ahead (Daganzo & Pilachowski, 2011, show simple headway rules are enough for spacing). ML framing would also shift the project toward research-track evaluation (CGPA 3.30 requirement).
 
-**"What happens if a bus is on-time, on-schedule, and demand is high ahead of it — what does the system do?"** *(New answer, post-compression-removal — will likely come up in PSM2)*
-> Honestly, nothing timing-wise — and that's by design, not a gap. A moving, on-schedule bus has no safe way to speed up without altering the fixed route or cutting boarding time below what passengers need. The system logs `NO_INTERVENTION_AVAILABLE` and, if the demand stays CRITICAL for several consecutive broadcasts, flags it to the fleet manager as a signal that an extra trip may be warranted. An earlier design used "arrival compression" (reduced dwell time) to claim an intervention existed here, but that mechanism can only realistically save 5–15 seconds per stop — not enough to matter — so it was removed. Stating this limitation plainly is stronger than claiming a fix that doesn't actually work.
+**"The thesis described Hold, Early Departure and arrival compression. Why is the system different now?"** *(Will come up in PSM2)*
+> Two documented design corrections. First (July 2026): arrival compression was removed — cutting dwell time saves 5–15 seconds a stop, not minutes. Second (Nov 2026): a whole-system review against UTM's current timetable showed the rest of the timing design didn't fit reality. UTM now runs a bus every 10 minutes at peak, and buses return to the terminus only minutes before their next departure, so "the next bus leaves early" is rarely possible — and moving a departure risks stranding the students who planned for it. The redesign follows one principle: never take away a departure students are counting on; add capacity with a spare bus when a bus has really left people behind. Stating the change and its reasons plainly is stronger than defending a design that wouldn't work.
+
+**"What happens when a bus is full and people are left behind?"**
+> If a spare bus can get there before the next scheduled bus, it runs an extra trip — no other bus changes its time. If the spare is further away and the next bus is already at the terminus, the next bus leaves a few minutes early and the spare covers its original time. If neither is possible, ORBIT moves nothing: it alerts the fleet manager and logs the event, which becomes evidence for next semester's timetable.
+
+**"Where do the spare buses come from? Isn't that just adding buses?"**
+> No new buses. UTM already runs supplementary buses on fixed timetables (Bus E went from 2 to 6; two are KDOJ-only extras). The design re-designates buses like those as a shared pool. A shared pool covers more with fewer vehicles than a fixed extra per route, because demand moves around from day to day — and a spare only drives when it's needed. This is a stated deployment assumption; the simulator plays it.
+
+**"What if students don't use the app?"**
+> ORBIT still works. A full bus is reported by the door counter or the driver's tap, and "left people behind" by the driver. The app makes ORBIT faster and better informed — it adds who was left behind and where they want to go — but it is never required. The system measures the share of riders using the app at each stop during an observation period instead of assuming one.
+
+**"Does the system act on its own?"**
+> Only as far as the fleet manager lets it. One setting: ask me first, send automatically and tell me, or off. The driver can always answer "Can't". And before any of that, the system runs in observation mode — it logs what it would have done and is checked against what happened.
+
+**"How do you know it works without real buses?"**
+> Software-in-the-loop validation: every component is real; only the outside world (bus positions, crowds, door counts, driver taps) is simulated and fed through the same interfaces real sources would use. The physical parts ORBIT assumes — door counters, driver devices, GPS, the spare pool — are stated deployment assumptions.
 
 ---
 

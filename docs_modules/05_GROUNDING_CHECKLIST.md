@@ -1,217 +1,155 @@
 # Module 05 — Grounding Checklist & Scope Guard
-
-> Load this whenever you feel uncertain about direction, or before any major implementation decision.
-> This module exists to prevent scope creep, feature bloat, and getting lost.
-> Original content below predates the "Trap" numbering convention used further down this file —
-> it was never split into discrete numbered traps; it's organized as thematic sections instead.
-> Traps 8–11 (added June–July 2026) are appended after the original content and use the numbered
-> convention. Recovered and reassembled August 2026 after a prior reorganization pass accidentally
-> left only an additions-only stub in the repo — see git history if the full story is ever needed.
+> Rewritten 13 Nov 2026 to the design locked on 11 Nov 2026.
+> Load this when direction feels uncertain, or before any design or build decision.
+> **What changed:** Trap 11 (arrival compression) stays active. New Traps 12–16 guard against the
+> July 2026 rules coming back. The old "6 objectives", feature stack and presentation checklist
+> described Hold / Early Departure / claim-lock and are replaced.
+> Traps 8–10 are kept as resolved history.
 
 ---
 
-## ⚠️ The System Development Track Trap (Read First)
+## The System Development track trap (read first)
 
-This is the single most important risk to your project approval. Understand it clearly.
+**The trap:** framing the project as "comparing ORBIT against the fixed timetable to prove it performs better" makes it look research-based. The research track needs CGPA 3.30 and a different document structure.
 
-**The trap:** If you frame your project as "comparing the MAS algorithm against fixed-route routing to prove it performs better," the evaluation panel may classify your project as **Research-based**. The Research track requires CGPA 3.30 minimum and a completely different document structure.
-
-**Why it happens:** Algorithmic comparison ("does A outperform B?") is a research question. System development is about building software that solves a problem and testing that it works correctly.
-
-**The fix — always use this framing table:**
-
-| ❌ Research framing (avoid) | ✓ System Development framing (use this) |
+| ❌ Research framing (avoid) | ✓ System Development framing (use) |
 |---|---|
-| "Evaluate MAS vs fixed-route performance" | "Validate system correctness under simulated demand" |
-| "Prove MAS reduces wait time" | "Verify the system meets its functional acceptance criteria" |
+| "Evaluate ORBIT vs the fixed timetable" | "Validate system correctness under simulated demand" |
+| "Prove ORBIT reduces waiting" | "Verify the system meets its acceptance criteria" |
 | "Compare algorithmic efficiency" | "Test that the software behaves as specified" |
-| "This algorithm is better because..." | "The system met / did not meet the following acceptance criteria..." |
-| "Validate the MAS algorithm" | "Test the software system's functional requirements" |
+| "This approach is better because…" | "The system met / did not meet these acceptance criteria…" |
+| "Hypothesis", "statistical significance" | "Requirement", "test case passed" |
 
-**What actually changes:** Nothing in what you build. Only how you describe and frame it — in objectives, in Chapter 5, in the NABC benefit row, and in how you present results.
-
-The MAS vs fixed-route comparison still exists — it becomes a **performance acceptance test**: one of many software test cases that checks whether the system meets its requirements under load. Not a research contribution.
+Nothing changes in what gets built — only how it is described. The timetable-only vs ORBIT comparison still exists, as a **performance acceptance test**. The observation-mode "hit rate" is a system check ("did ORBIT's logged decision match what happened?"), not a research result.
 
 ---
 
-## The Sanity Check (Run Before Every Work Session)
+## Sanity check (before every work session)
 
-Answer these four questions before writing any code or report section:
-
-**1. Which of the 6 objectives does this work serve?**
-If you can't name one, stop and reconsider.
-
-**2. Is this in scope?**
-If it requires hardware, a mobile app, an LLM, or integration with UTM's IT systems → it's out of scope. Write it in "Future Work" instead.
-
-**3. Is the deadline safe?**
-Check today's date against the calendar. If you're behind, cut features before cutting sleep.
-
-**4. Am I still on the System Development track?**
-If what you're writing sounds like a research contribution or algorithm comparison, reframe it as software testing and functional validation before continuing.
+1. **Which requirement does this serve?** Name an ID from `claude/14_SYSTEM_REQUIREMENTS.md`. If you can't, stop.
+2. **Is it one of the "never" lines (N1–N9)?** Then don't.
+3. **Is it physical?** Door counters, driver devices, GPS hardware and the spare pool are assumptions the simulator plays. ORBIT builds logic and interfaces.
+4. **Still System Development language?**
+5. **Is it an old rule?** Check Trap 12.
 
 ---
 
-## The 6 Objectives (Memorise These)
+## Traps
 
-1. MAS with autonomous Stop and Bus Agents
-2. Directed weighted campus graph + Dijkstra pathfinding
-3. Time-aware demand simulation engine
-4. MQTT inter-agent coordination with claim-lock protocol
-5. Real-time web dashboard for fleet manager
-6. **Validate system correctness and functional behaviour under simulated demand scenarios using black box test cases and defined software acceptance criteria**
+### RESOLVED — Trap 8: sequence diagram coverage
+Confirmed correct in the submitted thesis (SD001 = UC2+UC5, SD002 = UC6+UC7+UC8; every use case has its own SRS sequence diagram). History only. The PSM2 documents will need new diagrams for the new design — at report-writing time.
 
-> Objective 6 is deliberately framed around software validation, not algorithmic comparison. Do not reword it.
+### RESOLVED — Trap 9: PSM1 / PSM2 phase confusion
+PSM1 is submitted. Now: internship, weekend development; PSM2 March–July 2027. See `00_MASTER_CONTEXT.md`.
 
----
+### RESOLVED — Trap 10: "five-step" vs "six-step" hierarchy
+Fixed in the submitted thesis. **The six-step Bus Agent hierarchy itself no longer exists** in the design (Trap 12). If "six-step" appears in new work, that is the old design leaking in.
 
-## Scope Creep Red Flags
-
-If you or an AI assistant starts suggesting any of the following, **stop immediately**:
-
-| Suggestion | Why It's Scope Creep |
-|---|---|
-| "Let's add a student-facing mobile app" | Out of scope. Dashboard is fleet-manager only. *(Note: superseded by later design — the student app became an official Layer 1 component. Kept here as a historical example of the reasoning pattern, not a currently-accurate scope boundary.)* |
-| "We could use LangGraph for agent reasoning" | Agents are rule-based. LLMs add cost, complexity, non-determinism. |
-| "Let's connect to UTM's real bus GPS feed" | Requires UTM IT cooperation, hardware access, not a student project deliverable. |
-| "We should add real-time traffic data" | No traffic API budget, simulation is campus-only. |
-| "Let's make the buses learn from experience (ML/RL)" | New research area, not the project scope. Future work only. |
-| "We should add passenger booking/reservation" | Different system entirely. Not related to fleet optimisation. |
-| "Let's deploy this on AWS/cloud" | Local deployment only. No cloud hosting budget or requirement. |
-| "Add authentication and user accounts" | Unnecessary for a simulation demo. |
-| "Integrate with UTM's timetable API" | Demand model uses hardcoded schedule patterns. No live API needed. |
-
----
-
-## Feature Priority Stack
-
-When time is tight, implement in this order and stop when the deadline is near:
-
-### Must Have (Required for Pass)
-- [ ] Campus directed graph with all named stops
-- [ ] Stop Agent: queue classification + MQTT broadcast
-- [ ] Bus Agent: state machine + Dijkstra evaluation + constraint checks
-- [ ] MQTT claim-lock protocol (no double-response)
-- [ ] Demand simulation engine (time-aware, 4 scenario presets)
-- [ ] Text-based dashboard (bus table, stop table, decision log)
-- [ ] Unit tests for all agent constraint logic
-- [ ] Evaluation metrics computed and exported
-
-### Should Have (Good Grade)
-- [ ] Leaflet.js map with stop markers and bus position indicators
-- [ ] Queue colour-coding (green/yellow/red) on map
-- [ ] Simulation speed controls (1×, 5×, 10×)
-- [ ] Admin manual override via dashboard
-
-### Nice to Have (Only If Time Permits)
-- [ ] Bus route lines drawn on map
-- [ ] Scenario comparison: run multiple scenarios, compare all metrics in one view
-- [ ] Export simulation log to CSV from dashboard
-
-### Do Not Build
-- LLM integration inside agent logic
-- Real GPS or RFID hardware (until the PAJ project's feed is available to consume)
-
-> **Note (August 2026):** "Do Not Build — Mobile app" and "Student-facing features" from the
-> original version of this list are struck out here rather than silently removed, since they're
-> now factually wrong — the student PWA is an official, built Layer 1 component (see
-> `08_STUDENT_APP_DESIGN.md`, `10_PROTOTYPE_STATUS.md`). Kept visible so it's clear this file
-> predates that design decision rather than contradicting it silently.
-
----
-
-## Common Ways This Project Goes Wrong
-
-**Getting obsessed with the dashboard before the agents work**
-The dashboard is display only. It has zero value if the agents behind it aren't functioning correctly. Build agents → integration → dashboard. Never the reverse.
-
-**Making the demand simulation too clever**
-Your demand model does not need to be a research contribution. It needs to generate plausible queue numbers that create interesting agent decisions. Simple time-of-day spikes are enough.
-
-**Spending too long on the campus graph**
-The graph is a configuration file, not a research contribution. Define the stops, estimate the edges in minutes of travel, add it to graph.json, and move on. You can refine the weights later.
-
-**Trying to prove your system works on real data**
-You don't have real data. That's fine. Simulation-based validation is standard in systems research. State your assumptions clearly and your methodology is defensible.
-
-**Report chapters written before the system works**
-Chapter 4 (System Design) should be written during implementation, not before. Chapter 5 (Evaluation) cannot be written until the system runs. Don't write the cart before the horse.
-
----
-
-## When to Ask for Help vs. Push Through
-
-### Push Through Yourself
-- Minor Python bugs and syntax errors
-- Figuring out a specific NetworkX function
-- Wiring up MQTT topics between two agents
-- Deciding exact queue threshold numbers
-- Writing prose for report chapters
-
-### Ask Supervisor
-- Scope decisions: "Is X in scope for PSM1?" / "for PSM2?"
-- Stakeholder access: how to approach the transportation office / UTM Fleet
-- Methodology justification: "Is simulation-based validation acceptable?"
-- Evaluation design: "Are these metrics sufficient for the report?"
-
-### Bring to New Chat Session (with context modules loaded)
-- Architecture decisions
-- Agent logic design questions
-- Debugging complex agent interaction bugs
-- Report structure and chapter content
-- Evaluation methodology
-
----
-
-## What a Successful Presentation Looks Like
-
-You will have succeeded if you can:
-
-1. Open the dashboard and run the simulation live
-2. Show buses dynamically adjusting timing in response to queue spikes
-3. Point to the decision log and explain *why* a specific bus held, departed early, or did neither (and why that's correct, not a gap)
-4. Show the comparison table: MAS mode vs fixed-route baseline on the defined evaluation metrics
-5. Explain one acknowledged limitation clearly (e.g., a COMMUTING on-schedule bus has no safe intervention available by design)
-
-That is a complete, honest, defensible presentation. Nothing more is needed.
-
----
-
----
-
-## RESOLVED — Trap 8: Sequence Diagram Coverage Misrepresentation
-
-Confirmed correct in the finalized thesis: SD001 = UC2+UC5, SD002 = UC6+UC7+UC8. Every one of the 12 use cases has its own dedicated SRS sequence diagram (Figures 2.4.1b–2.4.12b); the SDD layers five additional composite/direct diagrams (SD001–SD005) on top for the most operationally significant flows. UC1/UC9/UC10/UC12 are not uncovered — they just don't have an SDD-level composite diagram. No further action needed; keep this framing if the SDD is revisited for PSM2.
-
----
-
-## RESOLVED — Trap 9: PSM1/PSM2 Phase Confusion
-
-**No longer active.** PSM1 is fully submitted. There is no more ambiguity to guard against — the project is now in the post-submission Buffer Sprint (sembreak), heading into the internship placement (Sept 2026–Feb 2027, weekends only), then PSM2 (March–July 2027). See `00_MASTER_CONTEXT.md`'s "Phase Status" section for the live, current framing. This trap entry is kept only as a historical note in case old chat context resurfaces the "is this PSM1 or PSM2" confusion.
-
----
-
-## RESOLVED — Trap 10: "Five-Step" vs "Six-Step" Bus Agent Constraint Hierarchy
-
-**Confirmed fixed in the finalized, submitted thesis PDF.** Direct check of the compiled document (July 2026) shows "six-step constraint hierarchy" used consistently throughout, including in the STD overview and the activity diagram description. The thesis's own AI-usage documentation appendix independently records this as an audited-and-corrected item ("Six-Step vs Five-Step Constraint Hierarchy Audit"). No outstanding "five-step" wording bug remains in the submitted document.
-
-**Do not confuse this with Trap 11 below** — this trap was about miscounting the *number of top-level steps* in the hierarchy. Trap 11 is about *which interventions exist inside step 5*. They are unrelated corrections that happen to touch the same diagram.
-
----
-
-## ACTIVE — Trap 11: Arrival Compression Is Not a Real Intervention (New, July 2026)
-
-**Arrival compression has been removed from the Bus Agent's intervention set.** It was originally introduced by misreading source material as endorsing dwell-time reduction as a viable dispatch lever — it isn't. UTM buses run without scheduled holds, so the achievable dwell-time saving at an intermediate stop is on the order of 5–15 seconds, not enough to produce a meaningful ETA change. It's a real operational nuance to be aware of (dwell time does vary slightly), not a lever an agent should be modeled as choosing to pull.
-
-The Bus Agent now selects between exactly **two** interventions: **Hold** (bus ahead of schedule) and **Early Departure** (bus idle at terminus, last resort). A COMMUTING bus that is on-time or behind schedule has **no safe intervention available** — this is logged honestly, not disguised.
+### ACTIVE — Trap 11: arrival compression is not a real intervention
+Removed July 2026. Cutting dwell time at a stop saves 5–15 seconds, not minutes.
 
 | ❌ Wrong | ✅ Correct |
 |---|---|
-| "The Bus Agent tries arrival compression first, then hold, then early departure" | "The Bus Agent tries hold (if ahead of schedule) or early departure (if idle at terminus, last resort); otherwise no intervention is available" |
-| "Compression reduced the ETA from 14 to 7 minutes" | This specific claim is physically unrealistic for a mechanism bounded to 5–15 seconds/stop and should not be reused anywhere — including in the student PWA / dashboard demo copy, where it currently exists |
-| Any dashboard/decision-log text reading "ARRIVAL_COMPRESSION_ACCEPTED" | Should read `HOLD_ACCEPTED` or `EARLY_DEPARTURE_ACCEPTED` depending on the actual scenario chosen |
-| Treating the PSM1 thesis's TC007_03 (arrival compression test case) as still valid going forward | It was valid for the PSM1 submission and is not being retroactively edited, but is superseded going forward by TC17 (`NO_INTERVENTION_AVAILABLE`) — see `01_AGENT_DESIGN.md` |
+| Any intervention called "compression", "speed up", "bus sped up for you" | It doesn't exist. Capacity is added by a spare bus; spacing is kept by a short hold |
+| "ETA improved from 14 to 7 minutes" | Not achievable; never reuse. The prototypes still contain it (`10_PROTOTYPE_STATUS.md`) |
+| `ARRIVAL_COMPRESSION_ACCEPTED` in a log | Use the event names in `01_AGENT_DESIGN.md` |
+| Treating the thesis's compression test case as valid going forward | The thesis is not edited; the design has moved on |
 
-**Known unresolved consequence, as of this session:** the built student PWA and dashboard prototypes (GitHub repo `SamyAridhan/ORBIT`) have their core demo scenario built entirely around arrival compression, per `AGENTS_DASHBOARD.md`: *"The intervention is arrival compression, not an early departure by an empty terminus bus."* This must be redesigned around Hold or Early Departure before either prototype is considered finalized. See `10_PROTOTYPE_STATUS.md` for the open decision.
+Searching for the word "compression" won't find the prototype behaviour — it isn't in `src/` or `dashboard/`. Search for the symptom: the "14 min → 7 min" numbers and the scripted sequence behind them.
 
-**Before finalising any document, diagram, or piece of UI copy, search it for "compression" and resolve any remaining instances against this trap.**
+### ACTIVE — Trap 12: the July 2026 rules are gone
+The design was replaced on 11 Nov 2026. These must not come back in code, tests, docs, dashboard copy or app messages:
+
+| ❌ Old rule | ✅ Now |
+|---|---|
+| "Timing adjustment only — Hold or Early Departure" for a busy stop | A spare bus for a confirmed overflow; a short hold only to keep buses spaced |
+| Early departure limits (terminus only, gap ≥ 15 min, max 8 min, utility ≥ 0.6) | No early departure for a queue. The only early move is the pull-forward, and only with a spare covering the original time |
+| Six-step Bus Agent checklist; 85% capacity lock; 12-minute protected window | Removed. The Coordinator checks each route |
+| `NO_INTERVENTION_AVAILABLE` | `NO_SPARE_AVAILABLE` — alert the manager and log it |
+| `queue = app_count / adoption`; fall back below 30% adoption | Removed. Act on a confirmed overflow; learn the app share during observation |
+| HIGH / CRITICAL triggers a broadcast; LOW stays silent | Levels are colours. Stops report all the time |
+| "CP and Jalan Amal never signal. Ever." | App signals there count. Only ORBIT's own schedule guesses for those two stops are ignored |
+| Plausibility filter rejects a strange count | Flag it, keep it, believe it if the driver or door counter agrees |
+| "At most one bus claims a stop" | One spare, at most one job; one overflow, at most one response |
+| Manager override sets a new route | Manager controls are timing-only |
+| 1.5× missed-bus weight | One person counts as one person |
+| ETA from queue-adjusted weights | Plain travel time plus any hold |
+
+### ACTIVE — Trap 13: never take a departure away
+Any idea that makes a scheduled bus leave earlier without cover, leave later to wait for a queue, skip a stop, or swap routes breaks the first principle. If a "clever" response moves a scheduled bus, check that a spare covers the original time and that the spare's driver accepted first.
+
+### ACTIVE — Trap 14: acting on a guess
+The whole-route count and app numbers are for display, logging and reports. An extra trip needs a bus that really left full and people really still waiting. Predicting ahead is a switch that stays off until the observation data earns it. A flagged count never acts alone.
+
+### ACTIVE — Trap 15: assumed is not built, and not promised
+- Door counters, driver devices, GPS coverage on Bus B/E/F and the spare pool are **assumptions**. Say so wherever they matter.
+- Placeholder numbers (28 seats, hold lengths, timeouts, travel times, level cut-offs) are never presented as settled.
+- The honest pitch: better service from the buses UTM already has, and evidence. Not "saves money", not "eliminates waiting". ORBIT can't create seats.
+- PAJ Phase 1 covers only KP–CP. Don't write as if PAJ's GPS already covers Bus E.
+
+### ACTIVE — Trap 16: PSM2 scope is not the design's scope
+- These modules describe the full real system, designed as if it will be deployed.
+- What goes into the PSM2 report is a separate, deferred decision (the examiner advised a smaller scope). Don't shrink the design to fit a report, and don't promise the full design in a report.
+- The decision path stays rule-based. The planning analyst's "AI commentary" idea is a draft, outside the control loop, left out of the PSM2 report unless Samy says otherwise.
+- The submitted thesis and the prototypes are not edited from here. Only context modules, and backend code through Coddy.
+
+---
+
+## Scope creep red flags
+
+| Suggestion | Why it's out |
+|---|---|
+| "Reroute a bus to the busy stop" / "send Bus B to help Bus E's route mid-trip" | No rerouting. Only a spare runs an extra trip, on the route's normal path |
+| "Let the agents learn from experience (ML / RL)" | The decision path is rule-based |
+| "Use an LLM inside the agents" | Non-deterministic, untestable, and off-track |
+| "Predict demand with a model and dispatch on it" | Trap 14 |
+| "Require login / myUTM to use the app" | Kills adoption. Anonymous by design; myUTM is future work |
+| "Make students book a seat" | A different system |
+| "Per-stop, per-bus settings for the manager" | One simple setting. Samy rejected the complicated version |
+| "Build the door counter / driver tablet hardware" | Assumed, simulated |
+| "Add real-time traffic data" | Not needed on a closed campus |
+| "Score drivers on their taps or refusals" | ORBIT's data is for planning, not for judging drivers |
+
+---
+
+## Build priority (core-first)
+
+Stop when time runs out; everything above the line you stopped at is a complete system.
+
+1. Stop Agent — the count of who's waiting, per route, reported all the time
+2. Route data, timetable and fleet files; arrival times
+3. Bus Agent — position, load, driver answers
+4. Coordinator I — whole-route count, confirmed overflow, observation mode
+5. MQTT, API, live dashboard tables and log
+6. Simulator and scenario library
+7. Planning reports
+8. Coordinator II — the spare bus, approval, driver instructions
+9. Holding
+10. Isolation Forest flag
+11. Student app and driver mode on the new flow; dashboard rework and map
+
+Task detail: `12_BUILD_MILESTONES.md`.
+
+---
+
+## Common ways this project goes wrong
+
+- **Polishing the dashboard before the agents work.** Agents → integration → dashboard.
+- **Making the crowd model clever.** It needs to produce plausible crowds that create interesting situations. Nothing more.
+- **Fussing over travel times.** They are config. Estimate, move on, tune later.
+- **Marking something decided before Samy says so.** Definitive beats fast.
+- **Trusting a hash in a report.** "Reported" is not "confirmed" until fetched from origin (`13_GIT_PERSISTENCE_PROTOCOL.md`).
+- **Old context leaking in.** An older chat, the thesis, `CLAUDE.md` in the repo or the prototypes may still state July 2026 rules. The modules dated 13 Nov 2026 win.
+
+---
+
+## What a good demo looks like
+
+1. A morning peak runs in the simulator. The dashboard shows who is waiting per route.
+2. A Bus E leaves KDOJ full. Seven students at KDSE tap "still waiting".
+3. The manager's phone shows: "7 left behind at KDSE. The spare is at KDOJ. Send it?" — Approve.
+4. The spare's driver screen pings: "Extra trip — Bus E from KDOJ." — "OK, going".
+5. The app announces "Extra Bus E at KDOJ, 7:32". No scheduled bus changed its time.
+6. Show the same morning with the setting on Automatic, and one where the driver taps "Can't".
+7. Show the observation report and a planning report with suggested trips per hour.
+8. State one limit plainly: when no spare can make it, ORBIT moves nothing — it alerts and logs.

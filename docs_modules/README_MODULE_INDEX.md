@@ -1,50 +1,72 @@
-# ORBIT Context Modules — Reorganized Index (July 2026)
-> This is the map of the finalized module set after the sembreak reorganization pass. Replaces the
-> module index inside the old `00_MASTER_CONTEXT.md` — that table is also updated to match this, so
-> either can be treated as current.
+# ORBIT Context Modules — Index (13 Nov 2026)
+> The map of the module set after the design was locked on 11 Nov 2026 and written into every
+> module on 13 Nov 2026. Replaces the July 2026 index.
+> If any other document — an older chat, the thesis, the prototypes, `CLAUDE.md` or `docs_modules/`
+> in the repo before Coddy syncs them — disagrees with a module dated 13 Nov 2026, the module wins.
 
 ---
 
-## Active Modules (load as needed)
+## Active modules
 
-| File | Status this session | Load When |
+| File | What changed on 13 Nov 2026 | Load when |
 |---|---|---|
-| `00_MASTER_CONTEXT.md` | **Rewritten.** Phase status corrected, compression-removal correction added, module index updated. | ALWAYS |
-| `01_AGENT_DESIGN.md` | **Rewritten.** Compression removed from the intervention hierarchy; Hold + Early Departure only; new `NO_INTERVENTION_AVAILABLE` outcome; TC17 added. | Agent behaviour, MAS design, test cases, MQTT |
-| `02_GRAPH_AND_SIMULATION.md` | **Confirmed unchanged.** Reviewed for compression references (none found) and route direction (Corridor E already correctly ordered KDOJ→KLG→KDSE→CP...). No edits needed. | Graph/routing, simulation design |
-| `03_DASHBOARD_AND_INTEGRATION.md` | **Confirmed unchanged.** Its decision-log example already uses `EARLY_DEPARTURE_ACCEPTED`, not compression. No edits needed. | Dashboard design, API, system integration |
-| `05_GROUNDING_CHECKLIST.md` | **Rewritten.** Traps 8–10 marked resolved/historical; new Trap 11 (compression) added as the active one to watch. | Before any design/build decision |
-| `06_RESEARCH_FINDINGS.md` | **Confirmed unchanged.** Citation set and research gap statement don't reference compression; still the correct literature base if PSM2 report extends Chapter 2. | Citation questions, PSM2 report continuity |
-| `07_UTM_BUS_ROUTES_REFERENCE.md` | **Confirmed unchanged.** Ground truth for corridors/stops; this is the doc that already has Corridor E's stop order right. | Route/stop questions, graph nodes |
-| `08_STUDENT_APP_DESIGN.md` | **Confirmed unchanged.** This is the formal design spec (distinct from the built prototype in the repo) — no compression references, still accurate. | App design, demand signal integrity |
-| `09_SUPERVISOR_PROJECT_REFERENCE.md` | **Confirmed unchanged.** PAJ project framing is stable and thesis-verified. | PAJ framing, supervisor meeting prep |
-| `10_PROTOTYPE_STATUS.md` | **New.** Documents what's actually built in the GitHub repo, what's locked (PWA UX), what's open (dashboard polish, the compression-dependent demo scenario — noted but deliberately not redesigned this session). | Only when work turns to the actual PWA/dashboard repo |
-| `ARCHIVE_PSM1_REPORT_AND_PANEL.md` | **New**, replaces the two files below. | Only if PSM2 report writing or viva prep comes up |
+| `00_MASTER_CONTEXT.md` | **Rewritten.** Phase status, design change log (July + Nov 2026), new principles, deployment assumptions, placeholders, module index. | ALWAYS |
+| `01_AGENT_DESIGN.md` | **Rewritten.** Stop Agent, Bus Agent, Coordinator; spare bus (three cases); confirmed trigger; whole-route count; holding; manager setting; driver answers; message topics; test cases TC101–TC141. | Agent behaviour, rules, tests |
+| `02_GRAPH_AND_SIMULATION.md` | **Rewritten.** Both Bus E paths; arrival times from plain travel times; timetable and fleet as data files; injector feeds door counts and driver taps; scenario library; observation mode. | Routes, simulation, validation |
+| `03_DASHBOARD_AND_INTEGRATION.md` | **Rewritten.** Endpoints for students, drivers and the manager; message shapes; dashboard with approval and planning reports; backend folder layout. | Dashboard, API, integration |
+| `05_GROUNDING_CHECKLIST.md` | **Rewritten.** Trap 11 kept; new Traps 12–16 (old rules, never take a departure away, acting on a guess, assumed ≠ built, PSM2 scope ≠ design scope). | Before any design or build decision |
+| `06_RESEARCH_FINDINGS.md` | **Updated.** "Apply to your system" notes brought to the current design; Bartholdi & Eisenstein added; new Part 11 (real-world precedents) and Part 12 (adoption evidence). PSM1 report paragraphs marked as such. | Citations, PSM2 report |
+| `07_UTM_BUS_ROUTES_REFERENCE.md` | **Rewritten** from the Oct 2026 driver sheets. The 2019/2023 content is gone. | Route and stop questions |
+| `08_STUDENT_APP_DESIGN.md` | **Rewritten.** Destination first, transfers, "did you get on?", how full, notices, driver mode, flag-not-block, corrected privacy statement, how students come to use it (locked 13 Nov, with sources). | App design |
+| `09_SUPERVISOR_PROJECT_REFERENCE.md` | **Updated.** ORBIT's position wording, GPS source order, separate app, Phase 1 coverage risk. PAJ facts unchanged. | PAJ framing |
+| `10_PROTOTYPE_STATUS.md` | **Updated.** New section: where the prototypes stand against the Nov 2026 design. The old "rebuild around Early Departure" plan is void. | Any frontend work |
+| `11_TESTING_QA_JBAGENTIC.md` | **Updated.** Test targets moved to the Coordinator; "no double claim" became the one-job invariant. | Test infrastructure |
+| `12_BUILD_MILESTONES.md` | **Replanned.** Blocks 0–13 around the new design; Block 1 Tasks 2 and 3 marked for rework; TC cross-reference. | **Every build session** |
+| `13_GIT_PERSISTENCE_PROTOCOL.md` | Unchanged. | Every build session |
+| `claude/14_SYSTEM_REQUIREMENTS.md` | **New.** What ORBIT must do, with IDs; maps the PSM1 use cases to the new design. | Design, tests, PSM2 documents |
+| `ARCHIVE_PSM1_REPORT_AND_PANEL.md` | **Updated.** Viva answers rewritten for the new design; new answers added. | PSM2 report or viva prep only |
+| `README_MODULE_INDEX.md` | This file. | Rarely |
 
-## Retired Modules
+## Design record and working notes (in `claude/`)
 
-| File | Why | Where its useful content went |
-|---|---|---|
-| `04_REPORT_WRITING_GUIDE.md` | PSM1 report is submitted; per-chapter drafting instructions are dead weight now. | Durable conventions (tense rules, citation set pointer, PAJ framing rule) → `ARCHIVE_PSM1_REPORT_AND_PANEL.md` |
-| `QnA_SUPERVISOR.md` | Panel round is done; "things not to say" scope-trap content is superseded by the checklist module. | Reusable viva/panel reasoning → `ARCHIVE_PSM1_REPORT_AND_PANEL.md`; scope traps → `05_GROUNDING_CHECKLIST.md` |
+| File | What it is |
+|---|---|
+| `claude/ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md` | The decisions locked on 11 Nov 2026 and their reasons; what is still open; assumptions Samy sets; the Oct 2026 timetable facts. The "why" behind the modules. |
+| `claude/ORBIT_REAL_WORLD_PRECEDENTS.md` | Real transport systems that work this way, with links. |
+| `claude/CODDY_CATCHUP_BRIEF.md` | The note that brings Claude Code up to date before the build resumes. |
 
-Don't load the two retired files going forward — they contain mid-correction framing from before the final thesis PDF existed, which is now stale.
+New files written by Chatty land in `claude/` — that is how the Project tool names them. In the repo's `docs_modules/` they sit beside the others.
+
+The Project's own instructions were replaced on 13 Nov 2026 (Samy pasted the new text), so they now match these modules.
+
+## Retired
+
+| File | Why |
+|---|---|
+| `04_REPORT_WRITING_GUIDE.md`, `QnA_SUPERVISOR.md` | PSM1-era; durable content is in `ARCHIVE_PSM1_REPORT_AND_PANEL.md`. |
+| The July 2026 editions of `00`, `01`, `05` | Hold + Early Departure, six-step hierarchy, "interchange stops never signal". Replaced. |
 
 ---
 
-## What Was Actually Confirmed This Session (Grounded Against the Real Thesis PDF + Repo)
+## Where to find things
 
-Spot-checked directly against the finalized, submitted 311-page thesis PDF rather than assumed from the old context modules:
+| Question | File |
+|---|---|
+| What must ORBIT do? | `claude/14_SYSTEM_REQUIREMENTS.md` |
+| What exactly happens when a bus leaves people behind? | `01` — "What happens — three cases" |
+| Why a spare pool? Why confirmed-first? | `claude/ORBIT_DESIGN_REVIEW_OPEN_DECISIONS.md` 3.1; `01` |
+| Is there a real system like this? | `claude/ORBIT_REAL_WORLD_PRECEDENTS.md`; `06` Part 11 |
+| How do students come to use the app? | `08` — "How students come to use it"; sources in `06` Part 12 |
+| What is the current UTM timetable? | `07` |
+| What is built, and what's next? | `12` |
+| Is this an old rule? | `05` Trap 12; `00` design change log |
+| What does ORBIT assume but not build? | `00` — "Deployment assumptions"; `14` |
+| What's still undecided? | `00` — "Still open or deferred"; the tracker, section 4 |
 
-- ✅ Six-step constraint hierarchy — confirmed correct throughout the submitted document, no lingering "five-step" bug.
-- ✅ Bus capacity — 28 seats, used consistently.
-- ✅ Headway constants — 15-minute minimum gap for early departure, 8-minute hard cap, both confirmed in the SRS requirement text and test cases (TC007_01/02).
-- ✅ Corridor scope — Bus B, E, F confirmed as the modeled corridors.
-- ✅ Corridor E stop order — KDOJ is correctly the first stop in `07_UTM_BUS_ROUTES_REFERENCE.md` and `02_GRAPH_AND_SIMULATION.md` (KDOJ→KLG→KDSE→CP...). Worth knowing: the **built PWA prototype's mock data has this backwards** (bus reaches KDOJ last) — that's a prototype-level detail, not a context-module error, and per your instruction it's left alone for now.
-- ⚠️ Arrival compression — confirmed present in the submitted thesis (design as originally proposed) and confirmed **removed going forward** in every context module per this session's correction. The submitted PDF itself is not edited retroactively.
+---
 
-## What Wasn't Touched (By Your Instruction)
+## Not touched
 
-- The actual thesis PDF — not edited.
-- The GitHub repo (`AGENTS.md`, `AGENTS_DASHBOARD.md`, `context_modules/`, `dashboard_context_modules/`, `src/`, `dashboard/`) — not edited. `10_PROTOTYPE_STATUS.md` documents its state but makes no changes to it.
-- `02`, `03`, `06`, `07`, `08`, `09` — reviewed and confirmed accurate, left as the originals since no correction was needed. If you want their file headers refreshed to match the new "PSM1 complete, sembreak" framing purely for consistency (no content change), say so and I'll do a quick pass — didn't do it by default since it's cosmetic and these files weren't otherwise broken.
+- The submitted PSM1 thesis.
+- The GitHub repo. Coddy syncs `docs_modules/` and `CLAUDE.md` from this module set when the build resumes (`claude/CODDY_CATCHUP_BRIEF.md`).
+- The prototypes (`src/`, `dashboard/`, `AGENTS.md`, `AGENTS_DASHBOARD.md`, `context_modules/`, `context_modules_2/`).

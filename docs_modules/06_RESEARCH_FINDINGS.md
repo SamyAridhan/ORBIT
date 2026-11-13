@@ -1,7 +1,12 @@
 # Module 06 — ORBIT Research Findings & Literature Review
-> Deep research findings for PSM1 Chapter 2. All citations verified.
-> Updated May 2026: PAJ supervisor project added as Part 9 — the most directly relevant related work.
-> mmWave section added. Student app / demand sensing section expanded. IoT and AI anomaly detection added.
+> Deep research findings, first written for PSM1 Chapter 2.
+> Updated May 2026: PAJ supervisor project added as Part 9.
+> **Updated 13 Nov 2026** after the design was locked on 11 Nov 2026: the "apply to your system"
+> notes now describe the current design (Stop Agent, Bus Agent, Coordinator, spare pool, holding
+> for spacing); Part 11 (real-world precedents) and Part 12 (how students come to use a transit
+> app) are new. **Quoted paragraphs marked "PSM1 wording" describe the old design** (dispatch
+> timing, early departure). They are kept as a record of what the thesis says and must be rewritten
+> when the PSM2 report is drafted — not reused as they stand.
 > System name: ORBIT (On-Demand, Route-Based Intelligent Transit System)
 
 ---
@@ -14,9 +19,10 @@
 The foundational definition of an intelligent agent: an entity that is **autonomous** (acts without direct human control), **reactive** (perceives and responds to environment), **proactive** (takes goal-directed initiative), and **social** (communicates with other agents).
 
 **Apply to your system:**
-- Stop Agent = reactive (responds to demand signal changes)
-- Bus Agent = deliberative (plans timing interventions, evaluates constraints)
-- Both agents communicate via MQTT — satisfies the social property
+- Stop Agent = reactive (keeps and reports the count of who is waiting)
+- Bus Agent = owns its own state, applies its own hold rule, carries out instructions
+- Coordinator = deliberative (weighs each route's total against the coming bus, assigns the spare)
+- All three communicate via MQTT — satisfies the social property
 
 This is your theoretical anchor. Cite it every time you define what an agent is.
 
@@ -50,7 +56,7 @@ Foundation for Intelligent Physical Agents. Defines agent communication language
 - Cannot adapt during the semester to changing demand patterns
 
 **How your project addresses the gap:**
-Where Noor et al. optimise the schedule offline, your system optimises dispatch timing online, during operation, using real student demand signals.
+Where Noor et al. improve the schedule offline from GPS history alone, ORBIT adds what GPS can't see — where people are waiting and who was left behind — and uses it both on the day (a spare bus for a confirmed overflow) and offline (planning reports for the next timetable).
 
 ### Qatar University IEOM (2020)
 Campus shuttle bus simulation study. Tested scheduling modifications in simulation. Reported up to 75% effectiveness improvement in service delivery metrics. Validates simulation as a legitimate PSM2 evaluation methodology — you are not the first to use simulation for campus transit evaluation.
@@ -84,9 +90,14 @@ Difference from your system: their agents operate in open urban networks with fl
 - Simple rule-based control is sufficient; complex optimisation not required
 
 **Apply to your system:**
-Your Bus Agent claim-lock protocol is a form of cooperative headway control. Bus E1 and E2 are implicitly cooperating — when E1 claims a demand event, E2 does not respond, preventing both buses from compressing simultaneously and arriving together.
+ORBIT's holding rule is the direct application: a bus that has caught up too close to the bus ahead waits a minute or two at a control point, at peak only (`01_AGENT_DESIGN.md`). It is based on the gap to the bus ahead, not on the timetable — the same idea as headway-based control.
 
-This paper validates your timing intervention mechanism theoretically. Cite in Chapter 2 when explaining why timing adjustment is the right mechanism and why rule-based logic is sufficient.
+Cite when explaining why a simple rule is enough for spacing. Do not cite it as support for answering queues — in the current design queues are answered by a spare bus, not by timing changes.
+
+### Bartholdi & Eisenstein (2012)
+**Full citation:** Bartholdi, J.J., & Eisenstein, D.D. (2012). A self-coördinating bus route to resist bus bunching. *Transportation Research Part B: Methodological*, 46(4), 481–491.
+
+Headway-based holding at a control point, with no timetable needed: each bus's hold depends on the gap to the bus behind it. Trialled on a university route at Georgia Tech with drivers following a tablet. The closest published match to ORBIT's holding rule and driver screen. (Check the citation details against the paper before using it in the report.)
 
 ---
 
@@ -101,7 +112,7 @@ Machine learning models require historical operational data to learn from. UTM d
 Introducing ML components shifts the project toward research track framing — validating a model's predictive performance rather than validating software functional requirements. Research track requires CGPA 3.30.
 
 **The sufficiency argument:**
-Daganzo & Pilachowski (2011) demonstrate that cooperative rule-based headway control achieves 53–78% variance reduction. For the problem of dispatch timing optimisation in a fixed-route campus network, rule-based agents are not a compromise; they are the appropriate tool.
+Daganzo & Pilachowski (2011) demonstrate that cooperative rule-based headway control achieves 53–78% variance reduction. ORBIT's other decisions are simpler still: count a route against the seats on the coming bus, and send a spare when a bus has really left people behind. Rule-based agents are not a compromise here; they are the appropriate tool.
 
 **Future work framing:**
 As the student app and the PAJ project's GPS infrastructure accumulate real data over multiple semesters, ML-based demand prediction and ETA modelling become viable. This is documented as Phase 4 maturity in the Future Work section.
@@ -113,7 +124,7 @@ As the student app and the PAJ project's GPS infrastructure accumulate real data
 ### Skyss (Bergen, Norway) — APC Inference
 Bus operator running 300+ routes. Uses infrared bidirectional APC door counters. Does not count people waiting at stops — counts people who board and alight. Analyses net inflow over time at each stop to infer upstream waiting demand.
 
-**Relevance:** Your fallback demand model uses class schedule patterns as a proxy — analogous to Skyss's indirect inference. You are not the first to infer demand without direct observation.
+**Relevance:** door counters are ORBIT's best source for how full a bus is and the backbone of the planning reports (load per trip, empty runs). The app adds what counters can't see: people left behind, and where they want to go. In the simulator, the class-schedule model plays the crowd.
 
 ### mmWave Radar (60–77GHz) — Future Hardware Path
 
@@ -130,7 +141,7 @@ FMCW radar. Counts people via multi-target tracking. No camera, no privacy conce
 **Why it's Future Work:**
 Counts headcount — does not know destination corridor. Cost: RM2,000–8,000 × 30+ stops. Hardware deployment outside PSM1/2 scope. Student app solves both queue counting AND destination attribution simultaneously.
 
-**Architecture note:** Stop Agent pluggable queue source supports future mmWave integration without agent logic changes.
+**Architecture note:** the Stop Agent's count can take another source later without changing the agents. In the current design, bus load comes from door counters, then driver taps, then rider taps.
 
 ---
 
@@ -152,12 +163,12 @@ No bus tracking, no bus information whatsoever. The planned PAJ project will eve
 |---|---|
 | Sensor | Student phones (GPS + intent), bus GPS trackers, future mmWave radar |
 | Communication | MQTT (ISO/IEC 20922) — dominant IoT protocol |
-| Processing | Stop Agents + Bus Agents (edge decision-making) |
+| Processing | Stop Agents, Bus Agents and the Coordinator |
 | Application | Student PWA + Fleet Dashboard |
 
 **Key reference:** Al-Turjman et al. (2019) — IoT in smart transportation.
 
-**Connection to PAJ project:** The PAJ project also uses GPS sensors and 3G/4G connectivity — confirming the IoT framing for UTM's transit system is appropriate and institutionally recognised. ORBIT extends this IoT model from passive tracking to active coordination.
+**Connection to PAJ project:** The PAJ project also uses GPS sensors and 3G/4G connectivity — confirming the IoT framing for UTM's transit system is appropriate and institutionally recognised. ORBIT adds the demand side: where the people are, and decision support for the fleet.
 
 ---
 
@@ -201,17 +212,18 @@ This is the critical gap that ORBIT addresses:
 
 ```
 PAJ Project:  GPS tracking → Cloud → ETA display → Passenger sees bus location
-              "Where is the bus right now?"
+              "Where is the bus?"
 
-ORBIT:        Student demand → MAS coordination → Dispatch adjustment → Fleet sees everything
-              "What should the bus DO about where the students are?"
+ORBIT:        Trip requests + door counts + driver taps → live demand picture
+              → spare bus for a confirmed overflow, alerts, planning reports
+              "Where are the people, and what should Fleet do about it?"
 ```
 
-These are complementary layers, not competing systems. The PAJ project provides the GPS infrastructure. ORBIT provides the coordination intelligence that GPS tracking alone cannot deliver.
+These are complementary layers, not competing systems. The PAJ project provides the GPS infrastructure. ORBIT adds demand sensing and fleet decision support that GPS tracking alone cannot deliver.
 
-**Technical integration point:** ORBIT's `ETACalculator` is a pluggable module. When the PAJ project's Phase 1 GPS feed is live (target December 2026, KP–CP corridor), ORBIT can consume that feed immediately through a swap-in, requiring no architectural changes.
+**Technical integration point:** ORBIT takes bus position from the best source available: PAJ GPS, then the driver's device, then a timetable estimate marked "approximate". Where PAJ's own ETA exists, ORBIT uses it. **Risk:** PAJ Phase 1 covers only the KP–CP route — not Bus B, E or F.
 
-### How to Write This in Chapter 2
+### How to Write This in Chapter 2 *(PSM1 wording — rewrite for PSM2)*
 
 Frame the PAJ project as:
 1. **Institutional validation** — A funded multi-year initiative by senior UTM researchers confirms the problem is real and formally recognised
@@ -246,7 +258,68 @@ Unsupervised anomaly detection. Builds ensemble of isolation trees. No labelled 
 
 ---
 
-## Research Gap Statement (Final Version — Updated with PAJ Context)
+## Part 11 — Real-World Precedents for the Current Design (Nov 2026)
+
+The design locked on 11 Nov 2026 was checked against how real transport systems work. The full
+evidence, with links, is in **`claude/ORBIT_REAL_WORLD_PRECEDENTS.md`** — read that file before
+citing any of it. In short, it covers:
+
+- **Standby / spare buses** kept ready to fill a gap or answer a crowd (several North American agencies), and research showing that where to station them is usually decided without a formal method — the gap ORBIT's planning reports address.
+- **A shared pool beats fixed extras** (risk pooling): fewer vehicles cover more surprises when they are not tied to one route.
+- **Headway-based holding at a control point**, including a university-route trial with drivers following a tablet.
+- **How full is the bus:** door counters feeding passenger apps; riders reporting crowding in an app; operators showing crowd levels to passengers.
+- **Door counters for planning:** load per trip as the standard evidence for timetable changes.
+
+Use: these justify that ORBIT's parts are things real operators already do. ORBIT's contribution is putting them together for a campus, with the app supplying what counters can't see (who was left behind, and where they want to go).
+
+---
+
+## Part 12 — How Students Come to Use a Transit App (adoption evidence, Nov 2026)
+
+Collected 12–13 Nov 2026 for the question "how do we get students to use it naturally?" The plan
+built on this — seven key points, **locked by Samy on 13 Nov 2026** — is in
+`08_STUDENT_APP_DESIGN.md`, which carries the same source list. Web sources read as search results
+and article summaries, not peer-reviewed unless noted — re-open a link before citing it in the report.
+
+**Ride-hailing — starting rough, one place at a time**
+- **Grab (MyTeksi, Kuala Lumpur, June 2012):** bookings on day one far outran the drivers available. The team recruited drivers face to face at coffee shops and petrol kiosks; the first 40 drivers' phones pinging with jobs became the talking point that brought in more. Early matching was partly done by hand.
+  - https://www.grab.com/ph/blog/grab-40-drivers/
+  - https://www.nbcnewyork.com/news/business/money-report/how-i-built-a-2-billion-a-year-super-app-called-grab-20-hour-work-days/5862663/
+  - https://thesun.my/archive/grabcar-huge-success-southeast-asia-within-five-years-CTARCH455422
+- **Uber:** started in one city with a small group of early adopters, gave free rides at local events, used referral credit for both sides, grew mostly by word of mouth, then went city by city.
+  - https://growthhackers.com/growth-studies/uber
+  - https://www.freecodecamp.org/news/growth-hacking-lessons-from-the-big-guys-daebb2c791d2
+
+**Bus information apps — usefulness is the draw**
+- **OneBusAway (Seattle) and related studies:** 92% of riders reported increased satisfaction; riders with real-time information waited almost two minutes less, and their perceived wait matched their actual wait. A New York study found a median 1.7% increase in weekday route-level ridership.
+  - https://onlinepubs.trb.org/onlinepubs/trnews/trnews303rpo.pdf
+  - https://nap.nationalacademies.org/read/27883/chapter/10
+
+**Campus shuttles**
+- **NUS (Singapore):** the NUS NextBus and uNivUS apps show arrival times, colour-coded crowd levels, live bus positions and journey planning; bus arrival works as a guest without login; the university points to the apps from its own transport pages; NUS also keeps a standby pool of bus captains. An April 2025 student union survey reported 91.6% mobility satisfaction.
+  - https://about-univus.nus.edu.sg/univus-tips/
+  - https://nus.edu.sg/inside-nus/stories/on-the-go--campus-wide-mobility-satisfaction-climbs-amid-industry-wide-challenges
+  - https://uci.nus.edu.sg/campus-life/campus-services/transportation/internal-shuttle-bus
+- **Rutgers:** QR codes at all campus bus stops, notices inside buses, and the app introduced at new-student orientation.
+  - https://dailytargum.com/article/2023/08/u-unveils-new-bus-tracking-app-for-campus-fleet
+- **University of Minnesota (2012):** new signs at all campus stops carry a stop number (call or text for the next arrivals) and a QR code; a real-time map on the web; electronic signs at some stops.
+  - https://campustechnology.com/Articles/2012/09/05/U-Minnesota-Brings-Real-Time-Transportation-Tracking-to-the-Public.aspx
+- **UConn (2019):** a new tracking app with rider counts and arrival notifications. Students found it simpler ("Now it's much simpler to see when the buses are coming") but objected to the extra download ("I don't understand why they had to make a separate app"; "pretty inconvenient that you need to download a new app just to track the busses"). One student didn't want the crowd feature ("I don't need to know how full the bus is"). The student paper also ran "Don't trust arrival times" — accuracy matters more than features.
+  - https://dailycampus.com/2019/03/15/2019-3-15-students-think-bus-tracking-has-improved-still-some-concerns/
+  - https://dailycampus.com/2019/03/13/2019-3-13-dont-trust-arrival-times-on-transloc-rider/
+- **LSU:** the bus tracking app got slightly more than 5,000 hits at launch and more than 66,000 within three months. These are app hits, not riders — the article gives no ridership figures.
+  - https://www.metro-magazine.com/news/lsu-sees-results-from-revamping-campus-transit
+
+**What it adds up to (the seven key points in `08`):** be useful first (arrival time, will I fit); no install, no login; be at the point of need (QR at stops, notices in buses); win one route or college before the whole campus; catch each new intake at orientation; make the benefit visible; get official backing. Posters raise awareness but don't create the habit. None of it is guaranteed — which is why ORBIT's design never depends on the app.
+
+---
+
+## Research Gap Statement (PSM1 version — as submitted; rewrite for PSM2)
+
+> **Note (13 Nov 2026):** this is the statement in the submitted thesis. It speaks of "autonomous
+> multi-agent dispatch coordination" and "demand-responsive timing decisions" — the old design.
+> The PSM2 version should speak of a live demand picture, a shared spare bus for confirmed
+> overflow, and planning evidence. Drafting it is deferred to report-writing time.
 
 > *"Existing campus transit optimisation studies produce static schedule improvements without real-time demand response (Noor et al., 2021), or apply MAS to urban networks without fixed-corridor constraints and student demand capture (Meignan et al., 2007; Jäger et al., 2018). Headway control theory validates timing-based intervention as sufficient for schedule variance reduction (Daganzo & Pilachowski, 2011), but no implementation combines voluntary student demand signalling, autonomous multi-agent dispatch coordination, and fleet manager visibility within a single campus transit system. Critically, even the most advanced active initiative at UTM itself — a funded multi-year IoT-GPS project deploying real-time bus tracking and ML-based ETA prediction across all campus corridors — addresses bus visibility but not demand-responsive coordination. GPS tracking makes buses visible; it does not make them intelligent. ORBIT addresses this gap through a three-layer architecture — student PWA for demand signalling, MAS backend for autonomous coordination, fleet dashboard for management visibility — designed to complement and consume the GPS infrastructure this tracking initiative will deliver, transforming a visible transit network into a demand-responsive one."*
 
@@ -266,3 +339,6 @@ Unsupervised anomaly detection. Builds ensemble of isolation trees. No labelled 
 | Liu et al. | 2008 | Isolation Forest — anomaly detection |
 | Al-Turjman et al. | 2019 | IoT in smart transportation |
 | PAJ / Sharul et al. | 2026 | UTM Smart Bus IoT-GPS project — closest related work, institutional context, remaining gap |
+| Bartholdi & Eisenstein | 2012 | Headway-based holding at a control point; campus trial with driver tablets |
+| Real-world precedents | various | Standby buses, shared pools, door counters, crowd levels — `claude/ORBIT_REAL_WORLD_PRECEDENTS.md` |
+| Adoption sources | various | Part 12 below |

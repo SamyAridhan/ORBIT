@@ -1,469 +1,337 @@
-# Module 02 — ORBIT Campus Graph & Demand Simulation
-> Updated May 2026: Graph nodes use real UTM stop names from official schedule.
-> PSM2 evaluation approach: software-in-the-loop simulation. Virtual data injector documented.
-> Updated Sep 2026: Corridor E corrected against the official UTM Fleet Bus E driver sheets
-> (E1/E3/E5) — PKU removed from Corridor E (it is a Bus D stop, not Bus E). See the note under
-> the Corridor E travel-time table.
-> System name: ORBIT (On-Demand, Route-Based Intelligent Transit System)
+# Module 02 — ORBIT Route Map, Timetable Data & Simulation
+> Rewritten 13 Nov 2026 to the design locked on 11 Nov 2026.
+> **Changed:** arrival times no longer use queue-adjusted weights; Bus E has two paths; the
+> timetable, the buses and the spare pool are data files; the injector also feeds door counts and
+> driver taps; the four scenario presets grow into a scenario library; the simulator plays the
+> observation months. The "verify with Dr Sim / UTM Fleet" notes are gone — unknowns are
+> assumptions Samy sets (`00_MASTER_CONTEXT.md`).
+> System name: ORBIT (On-Demand, Route-Based Intelligent Transit System).
 
 ---
 
-## Campus Graph
+## Route map (campus graph)
 
-### What It Is
-A directed weighted graph of UTM Skudai's shuttle road network. Directed because some campus roads are one-way. Weighted because edge weights encode travel time between stops.
+### What it is
+A directed, weighted graph of UTM Skudai's shuttle roads. Directed because some campus roads are one-way. Each edge carries a base travel time in minutes.
 
-**Important:** The graph is not a single connected mesh. It is a set of corridor subgraphs. Bus B agents only traverse Bus B corridor nodes. Bus E agents traverse Bus E corridor nodes. CP is a shared node appearing in multiple corridors (interchange point).
+The map is a set of route subgraphs, not one mesh. A Bus E bus only ever drives Bus E's path. **No rerouting.** A spare on an extra trip for Bus E drives Bus E's normal path.
 
-### Implementation
 ```python
 import networkx as nx
 G = nx.DiGraph()  # DIRECTED — not Graph()
 ```
 
-### Confirmed Nodes (Real UTM Stop Names)
+### Stops per route
 
 ```python
-# Corridor B: KP ↔ K9/10 ↔ Cluster
-B_STOPS = ["kolej_perdana", "kolej_9_10", "cluster_t02", "cluster_t04",
-           "cluster_t06", "cluster_t08"]
+# Bus B: KP ↔ K9/10 ↔ Cluster
+B_STOPS = ["kolej_perdana", "kolej_9_10", "cluster_t02", "cluster_t08"]
 
-# Corridor C: K9/10 ↔ KTC ↔ CP ↔ Jln Amal
+# Bus C: K9/10 ↔ KTC ↔ CP ↔ Jln Amal
 C_STOPS = ["kolej_9_10", "ktc", "cp", "jalan_amal"]
 
-# Corridor D: KDOJ ↔ KLG ↔ KDSE ↔ PKU ↔ CP ↔ Jln Amal
-# NOTE: PKU (UTM Health Centre) is a Bus D stop, confirmed by the official shuttle
-# map legend (BAS D: KDOJ – KLG – KDSE – PKU – CP – JLN AMAL – KDOJ). It is NOT a
-# Bus E stop — do not add it to E_STOPS. Bus D and Bus E share the same origin
-# colleges (KDOJ/KLG/KDSE) but diverge after KDSE: D goes via PKU→CP→Jln Amal, E
-# goes direct KDSE→CP then on to the Cluster via N24→KTC.
-D_STOPS = ["kdoj", "klg", "kdse", "pku", "cp", "jalan_amal"]
+# Bus E: KDOJ / KLG / KDSE → Cluster. TWO PATHS (Oct 2026 driver sheets):
+#   E1, E3, E5:  … CP → N24 → KTC → Cluster
+#   E2, E4, E6:  … CP → Jalan Amal (D05) → KTC → Cluster
+# E5 and E6 are KDOJ-only supplementary buses.
+E_STOPS_VIA_N24        = ["kdoj", "klg", "kdse", "cp", "n24", "ktc",
+                          "cluster_t02", "cluster_t08"]
+E_STOPS_VIA_JALAN_AMAL = ["kdoj", "klg", "kdse", "cp", "jalan_amal", "ktc",
+                          "cluster_t02", "cluster_t08"]
 
-# Corridor E: KDOJ/KLG/KDSE → Cluster via CP→N24→KTC (NO PKU — see note below)
-# cluster_t06 is a provisional intermediate cluster stop ("if stopping — confirm
-# with UTM Fleet"); modeled as absent for the Block 0 graph (T02→T08 direct).
-E_STOPS = ["kdoj", "klg", "kdse", "cp", "n24", "ktc",
-           "cluster_t02", "cluster_t08"]
-
-# Corridor F: KTR → KTHO → KTDI → Jln Amal → CP
+# Bus F: KTR → KTHO → KTDI → Jln Amal → CP
 F_STOPS = ["ktr", "ktho", "ktdi", "jalan_amal", "cp"]
 
-# Corridor G: KTR/KTHO/KTDI → N24 → SKT → P19 → CP
-G_STOPS = ["ktr", "ktho", "ktdi", "n24", "skt", "p19", "cp"]
+# Bus G: KTR/KTHO/KTDI → N24 → FKT (N29) → P19 → CP
+G_STOPS = ["ktr", "ktho", "ktdi", "n24", "fkt_n29", "p19", "cp"]
 
-# Shared nodes (appear in multiple corridors)
+# Shared by more than one route. A ROUTING fact only.
 INTERCHANGE_NODES = ["cp", "jalan_amal", "n24", "ktc"]
 ```
 
-> **⚠️ Post Dr Sim meeting:** Verify exact stop sequence and one-way segments for each corridor. The above is based on the official schedule route descriptions and the UTM Fleet driver-detail sheets — exact road topology (one-way segments in particular) still needs ground-truth confirmation. Corridor E's *stop sequence* is now confirmed against the official Bus E driver sheet; its *travel-time weights* remain estimates.
+**Bus D is not modelled yet.** The older reference had D as KDOJ – KLG – KDSE – PKU – CP – Jln Amal. The Oct 2026 D1 sheet shows CP → N24 → FKT (N29) → P19 → CP. The other D sheets are missing. PKU is not a Bus E stop either way.
 
-### Edge Weight Formula
-```
-W_edge = base_travel_minutes × (1 + 1 / (queue_count_at_destination + 1))
-```
-- High queue at destination → smaller penalty → edge more attractive (bus should go there)
-- Low queue → penalty approaches 2× base (discourages unnecessary detour)
-- `base_travel_minutes` = estimated road segment travel time
+**"Interchange node" is a routing word.** It means a stop that sits on more than one route's path. It says nothing about demand. The old rule that CP and Jalan Amal "never signal" is gone (`01_AGENT_DESIGN.md`); do not reuse this list for anything about counting people.
 
-### Approximate Base Travel Times
+### Base travel times (all estimates — placeholders)
 
-These are estimates. Verify with Dr Sim or UTM Fleet, or drive/time the routes.
+**Bus E, outbound:**
 
-**Corridor E (KDOJ → Cluster) — most critical corridor:**
-
-| Segment | Minutes | Direction |
+| Segment | Minutes | Path |
 |---|---|---|
-| KDOJ → KLG | 3 | one-way outbound |
-| KLG → KDSE | 3 | one-way outbound |
-| KDSE → CP | 6 | bidirectional |
-| CP → N24 | 4 | one-way |
-| N24 → KTC | 3 | one-way |
-| KTC → Cluster T02 | 4 | one-way |
-| Cluster T02 → T08 | 3 | one-way loop |
+| KDOJ → KLG | 3 | both |
+| KLG → KDSE | 3 | both |
+| KDSE → CP | 6 | both |
+| CP → N24 | 4 | via N24 |
+| N24 → KTC | 3 | via N24 |
+| CP → Jalan Amal | 4 | via Jalan Amal |
+| Jalan Amal → KTC | 4 | via Jalan Amal |
+| KTC → Cluster T02 | 4 | both |
+| Cluster T02 → T08 | 3 | both |
 
-> **Corridor E correction (Sep 2026):** An earlier version of this table routed Corridor E
-> as `KDSE → PKU (4) → CP (5)`, mistakenly copying **Bus D's** path (D goes via PKU). The
-> official UTM Fleet Bus E driver sheets (E1/E3/E5) all state the route as
-> **KDOJ/KLG/KDSE → CLUSTER via CP – N24 – KTC**, with no PKU — KDSE connects directly to CP.
-> The two PKU rows have been replaced with a single `KDSE → CP` segment. Its weight (6 min) is
-> a **placeholder** pending Dr Sim / UTM Fleet confirmation, like every other value in this
-> table — it is deliberately less than the old two-hop 4+5=9 total because that total included
-> a passenger stop at PKU that no longer occurs. Total KDOJ→Cluster (T02) under this table:
-> 3+3+6+4+3+4 = 23 min to T02, +3 to T08 = **26 min** end-to-end.
+- Via N24: 3+3+6+4+3+4 = **23 min** to T02, **26 min** to T08. This is what Block 0 built.
+- Via Jalan Amal: 3+3+6+4+4+4 = 24 min to T02 (placeholder; not yet in the graph).
+- Timetable check: each Bus E leaves KDOJ and leaves Cluster T02 30 minutes later. 23–26 minutes of driving plus a few minutes' wait fits. The placeholders look right.
+- **Return leg (Cluster → KDOJ) is not in the graph.** Each bus runs a 60-minute cycle, so the simulator needs it. Until Samy supplies the stop order, assume the outbound path in reverse with the same times.
+- `cluster_t06` is left out (T02 → T08 direct).
 
-**Corridor B (KP → Cluster):**
+**Bus B:**
 
-| Segment | Minutes | Direction |
-|---|---|---|
-| KP → K9/10 | 5 | bidirectional |
-| K9/10 → Cluster T02 | 7 | one-way outbound |
-| Cluster T08 → K9/10 | 7 | one-way return |
-| K9/10 → KP | 5 | bidirectional |
+| Segment | Minutes |
+|---|---|
+| KP → K9/10 | 5 |
+| K9/10 → Cluster T02 | 7 |
+| Cluster T08 → K9/10 | 7 |
+| K9/10 → KP | 5 |
 
-**Corridor F (KTR → CP):**
+**Bus F:**
 
-| Segment | Minutes | Direction |
-|---|---|---|
-| KTR → KTHO | 4 | one-way |
-| KTHO → KTDI | 3 | one-way |
-| KTDI → Jalan Amal | 5 | one-way |
-| Jalan Amal → CP | 4 | bidirectional |
+| Segment | Minutes |
+|---|---|
+| KTR → KTHO | 4 |
+| KTHO → KTDI | 3 |
+| KTDI → Jalan Amal | 5 |
+| Jalan Amal → CP | 4 |
 
-### Graph Build Code
+### Arrival times (ETA) — the rule
+
+> **An arrival time is plain travel time, plus any hold that is left. Nothing else.**
+
+1. Where PAJ's own ETA exists, use it.
+2. Otherwise: sum the base travel times from the bus's position to the stop along its path, and add `hold_remaining`.
+3. If the position is only a timetable estimate, label the result "approximate".
 
 ```python
-def build_corridor_graph(corridor_id: str) -> nx.DiGraph:
-    G = nx.DiGraph()
-    edges = CORRIDOR_EDGES[corridor_id]  # loaded from config/graph.json
-    for u, v, base_time in edges:
-        G.add_edge(u, v, base_time=base_time, weight=base_time)
-    return G
-
-def update_edge_weights(G: nx.DiGraph, queue_states: dict):
-    """Refresh weights from current queue data. Call every simulation tick."""
-    for u, v, data in G.edges(data=True):
-        q = queue_states.get(v, 0)
-        data["weight"] = data["base_time"] * (1 + 1 / (q + 1))
-
 def get_eta(G: nx.DiGraph, source: str, target: str) -> float:
-    """Returns estimated travel time in minutes."""
+    """Minutes of plain travel time. Uses base_time, never a queue-adjusted weight."""
     try:
-        return nx.dijkstra_path_length(G, source, target, weight="weight")
-    except nx.NetworkXNoPath:
+        return nx.dijkstra_path_length(G, source, target, weight="base_time")
+    except (nx.NetworkXNoPath, nx.NodeNotFound):
         return float("inf")
 ```
 
+**Removed:** the old edge-weight formula `base × (1 + 1/(queue + 1))`. It made a busy stop look closer, which is wrong for an arrival time, and its original purpose (choosing where a bus should go) doesn't exist in a no-rerouting system. The code from Block 0 still has `update_edge_weights()`; it must not feed arrival times (Block 2 in `12_BUILD_MILESTONES.md`).
+
 ---
 
-## Demand Simulation Engine
+## Data files — buses, timetable and limits are data, not code
 
-### What It Is
-A module that generates realistic queue counts per stop per simulation tick. It is NOT random — it is driven by UTM's class schedule and boarding/alighting history. This is what makes the simulation credible and academically justifiable.
+Adding a bus is adding a record. Changing the timetable for a new semester is swapping a file.
 
-### Honest Statement About Queue Sensing
-
-**Direct queue counting at bus stops does not exist in your simulation.** Your Stop Agents receive a simulated number from this engine. This is the correct approach because:
-
-1. No campus bus system reliably counts waiting queues directly
-2. Real systems (Skyss Norway, Moovit) infer demand from boarding patterns — not direct headcounts
-3. Your demand engine applies the same principle: infer expected queue from known class schedule patterns
-4. For simulation, you generate what the system *would* receive if sensors existed
-
-The vision-based queue counting idea (camera on bus) was evaluated and deferred to Future Work because: (a) queue data is only available at the moment the bus visits, not in real-time between visits, (b) destination ambiguity remains unsolved even with a camera, (c) CV accuracy in outdoor Malaysian conditions requires significant validation effort outside PSM1 scope.
-
-Use this paragraph in your report:
-> *"The Stop Agent receives queue state from the demand simulation engine, which generates probabilistic queue counts based on UTM's class schedule patterns. This approach is analogous to the indirect inference methodology used by production transit operators — Skyss (Norway) estimates waiting passengers through Automatic Passenger Counting data analysed across boarding/alighting patterns rather than direct stop-level measurement. The simulation abstracts the sensing layer to focus validation on the coordination and dispatch logic, which is the core contribution of this system."*
-
-### Design Philosophy
-Campus bus stop demand is highly predictable:
-- Spikes 15–20 minutes before a lecture (students leaving colleges)
-- Drops sharply after a bus arrives and boards passengers
-- Varies by stop based on nearby residential college population
-- Weekend/holiday demand is flat and low
-
-### UTM Lecture Slots
-```python
-LECTURE_SLOTS_HOURS = [8, 9, 10, 11, 12, 14, 15, 16, 17]
-PRE_LECTURE_WINDOW = 20  # minutes before slot = peak boarding window
-```
-
-### Stop Demand Profiles (Updated with Real UTM Stop Names)
-
-```python
-STOP_PROFILES = {
-    # Corridor E stops — KDOJ is the highest-demand origin for Bus E
-    "kdoj_bus_e": {
-        "baseline": 3,
-        "peak_multiplier": 6,
-        "peak_destinations": ["cluster_t02", "cluster_t08"],
-        "resident_college_capacity": 1200,  # approximate, verify
-    },
-    "klg_bus_e": {
-        "baseline": 2,
-        "peak_multiplier": 5,
-        "peak_destinations": ["cluster_t02"],
-        "resident_college_capacity": 800,
-    },
-    "kdse_bus_e": {
-        "baseline": 2,
-        "peak_multiplier": 5,
-        "peak_destinations": ["cluster_t02", "cluster_t08"],
-        "resident_college_capacity": 900,
-    },
-    # Corridor B stops
-    "kp_bus_b": {
-        "baseline": 3,
-        "peak_multiplier": 5,
-        "peak_destinations": ["cluster_t02", "kolej_9_10"],
-        "resident_college_capacity": 1100,
-    },
-    # Corridor F stops
-    "ktr_bus_f": {
-        "baseline": 2,
-        "peak_multiplier": 4,
-        "peak_destinations": ["cp", "jalan_amal"],
-        "resident_college_capacity": 1000,
-    },
-    "ktho_bus_f": {"baseline": 2, "peak_multiplier": 4, "peak_destinations": ["cp"]},
-    "ktdi_bus_f": {"baseline": 2, "peak_multiplier": 4, "peak_destinations": ["cp"]},
-    # Add all corridor stops
+**Timetable (one file per semester):**
+```json
+{
+  "effective_from": "2026-10-12",
+  "service_days": {"weekday": ["mon","tue","wed","thu","fri"], "weekend": ["sat","sun"]},
+  "no_service": [{"days": ["fri"], "from": "12:40", "to": "14:00"}],
+  "buses": {
+    "E1": {"corridor_id": "E", "path_variant": "via_n24",
+           "weekday_departures": {"kdoj": ["07:00","08:00","09:00","11:00"]}},
+    "E2": {"corridor_id": "E", "path_variant": "via_jalan_amal",
+           "weekday_departures": {"kdoj": ["07:10","08:10","09:10","11:15"]}}
+  }
 }
 ```
 
-### Queue Count Generation
-
-```python
-def get_queue_count(stop_id: str, sim_time: datetime,
-                    last_bus_visit: datetime) -> int:
-    profile = STOP_PROFILES[stop_id]
-    in_peak = is_within_pre_lecture_window(sim_time, PRE_LECTURE_WINDOW)
-
-    rate = profile["baseline"]
-    if in_peak:
-        rate *= profile["peak_multiplier"]
-
-    # Accumulate since last bus visit
-    minutes_since_visit = (sim_time - last_bus_visit).total_seconds() / 60
-    accumulated = int(rate * minutes_since_visit)
-
-    # Add ±20% noise for realism
-    noise = random.uniform(0.8, 1.2)
-    return int(accumulated * noise)
-```
-
-### Boarding / Alighting Simulation
-
-```python
-def simulate_stop_visit(bus, stop_id: str, sim_time: datetime):
-    available = bus.max_capacity - bus.current_load
-    queue = current_queue[stop_id]
-    boarding = min(queue, available)
-    leftover = max(0, queue - available)  # students who couldn't board
-
-    for _ in range(boarding):
-        dest = assign_destination(stop_id, sim_time)
-        bus.manifest.append(Passenger(
-            destination_stop=dest,
-            eta_to_destination=get_eta(corridor_graph, stop_id, dest)
-        ))
-
-    # Alighting
-    alighting = sum(1 for p in bus.manifest if p.destination_stop == stop_id)
-    bus.manifest = [p for p in bus.manifest if p.destination_stop != stop_id]
-
-    # Update queue state
-    current_queue[stop_id] = leftover
-    update_boarding_history(stop_id, boarding, alighting, sim_time)
-
-    return boarding, alighting, leftover
-```
-
-### Destination Probability Tables (PSM1 Hardcoded)
-
-```python
-DESTINATION_PROBABILITY = {
-    # Corridor E: morning trips go to Cluster, afternoon return to colleges
-    "kdoj_bus_e": {
-        "07:00-10:00": {"cluster_t02": 0.55, "cluster_t08": 0.45},
-        "11:00-13:00": {"kdoj": 0.50, "kdse": 0.30, "klg": 0.20},
-        "14:00-17:00": {"cluster_t02": 0.40, "cluster_t08": 0.60},
-    },
-    "klg_bus_e": {
-        "07:00-10:00": {"cluster_t02": 0.70, "cluster_t08": 0.30},
-        "11:00-13:00": {"kdoj": 0.30, "klg": 0.40, "kdse": 0.30},
-    },
-    # Corridor B
-    "kp_bus_b": {
-        "07:00-10:00": {"cluster_t02": 0.55, "cluster_t06": 0.25, "kolej_9_10": 0.20},
-        "12:00-14:00": {"kp": 0.55, "kolej_9_10": 0.45},
-    },
-    # Corridor F
-    "ktr_bus_f": {
-        "07:00-10:00": {"cp": 0.60, "jalan_amal": 0.40},
-        "12:00-14:00": {"ktr": 0.50, "ktho": 0.25, "ktdi": 0.25},
-    },
+**Fleet (buses, drivers, the spare pool):**
+```json
+{
+  "seats_default": 28,
+  "buses": [
+    {"bus_id": "E1", "role": "scheduled", "corridor_id": "E", "has_door_counter": true},
+    {"bus_id": "S1", "role": "spare", "has_door_counter": false,
+     "waiting_spots": [{"period": "morning_peak", "stop": "kdoj"},
+                       {"period": "evening_peak", "stop": "cluster_t02"}]}
+  ],
+  "drive_minutes_to_route_start": {"kdoj": {"E": 0, "B": 9, "F": 8}},
+  "control_points": {"E": ["kdoj", "cluster_t02"]},
+  "peak_periods": [{"from": "07:00", "to": "09:30"}, {"from": "16:30", "to": "18:15"}]
 }
 ```
+Every number in these examples is a placeholder. The real timetable pattern is in `07_UTM_BUS_ROUTES_REFERENCE.md`.
 
-### Boarding History (Skyss-Analogous Pattern Refinement)
-
-```python
-boarding_history = defaultdict(list)  # stop_id → list of visit records
-
-def update_boarding_history(stop_id: str, boarded: int,
-                             alighted: int, sim_time: datetime):
-    boarding_history[stop_id].append({
-        "time": sim_time,
-        "boarded": boarded,
-        "alighted": alighted,
-        "leftover": current_queue.get(stop_id, 0)
-    })
-    # Rolling window: keep last 3 visits
-    if len(boarding_history[stop_id]) > 3:
-        boarding_history[stop_id].pop(0)
-
-def get_demand_adjustment(stop_id: str) -> float:
-    """Scale demand estimate based on recent boarding history."""
-    history = boarding_history.get(stop_id, [])
-    if not history:
-        return 1.0
-    avg_leftover = sum(h["leftover"] for h in history) / len(history)
-    if avg_leftover > 10:
-        return 1.3   # consistently leaving passengers — scale up
-    elif avg_leftover == 0:
-        return 0.9   # always absorbing full queue — slight scale down
-    return 1.0
-```
+**Operating limits are data too:** number of buses, driver hours, the Friday prayer gap, route paths.
 
 ---
 
-## Scenario Presets
+## The simulator
 
-```python
-SCENARIOS = {
-    "normal_day":   {"peak_scale": 1.0, "noise": 0.20},
-    "peak_morning": {"peak_scale": 1.5, "noise": 0.15},  # e.g. first week of semester
-    "exam_week":    {"peak_scale": 0.4, "noise": 0.30},  # fewer students, more spread
-    "low_demand":   {"peak_scale": 0.2, "noise": 0.40},  # holiday, break
-}
-```
+### Core principle — software in the loop
 
----
+The system is fully real. All agent code, the Coordinator, the API, the app and the dashboard run exactly as they would in use. The only simulated part is the **outside world**: where buses are, how many people are really at each stop, what door counters read, what drivers and students tap. A virtual injector feeds these in through the same interfaces real sources would use. ORBIT cannot tell the difference.
 
-## Simulation Clock
+The simulator also plays everything ORBIT assumes but doesn't build: door counters, the driver's device, GPS, and the spare pool (`00` "Deployment assumptions").
 
-```python
-TICK_SECONDS = 5          # each tick = 5 seconds of simulated campus time
-SPEED_MULTIPLIER = 1      # adjustable via dashboard: 1×, 5×, 10×
+### Two different crowds — keep them apart
 
-sim_time = datetime(2026, 3, 23, 7, 0, 0)  # start at 7:00am
-
-while running:
-    sim_time += timedelta(seconds=TICK_SECONDS)
-    demand_engine.tick(sim_time)
-    for agent in all_agents:
-        agent.tick(sim_time)
-    time.sleep(TICK_SECONDS / SPEED_MULTIPLIER)
-```
-
----
-
-## Evaluation Metrics
-
-Run same scenario twice: MAS mode vs fixed-schedule mode. Compare:
-
-| Metric | Definition | Target |
+| | What it is | Who can see it |
 |---|---|---|
-| Average passenger wait time | Time from joining queue to boarding, averaged across all passengers | < 15 min |
-| Bus utilisation rate | Average (load / max_capacity) across all trips | > 60% |
-| CRITICAL queue events | Count of ticks where any stop queue > 30 | < 5 per simulated hour |
-| Service interval | Average time between consecutive bus visits per stop | ≤ 20 min |
-| Leftover passengers per trip | Average passengers who couldn't board due to capacity | Minimise |
+| **The real crowd** | The people the simulator decides are standing at a stop | Only the simulator. ORBIT never reads it directly. |
+| **What ORBIT sees** | App signals from the share of that crowd who use the app; door counts when they board; driver taps | ORBIT |
 
----
+`app_share` per stop is a scenario setting (for example 0.25 at KDOJ). This is what lets the simulator play the observation months: ORBIT compares app counts with door counts and learns the share, exactly as it would in real life.
 
-## PSM2 Evaluation Approach — Software-in-the-Loop Simulation
-
-### Core Principle
-
-The system is fully real. All agent code, all coordination logic, all three layers run exactly as they would in production. The only simulated part is the **data sources** — bus GPS positions, student demand signals, and boarding outcomes. A virtual injector feeds these into the system; the system processes them identically to real data. It has no knowledge of whether data is real or simulated.
-
-This is software-in-the-loop simulation — standard methodology for transit system validation. The Qatar University campus transit study used the same approach.
-
-### What the Virtual Injector Does
+### What the injector feeds in
 
 ```python
 class VirtualInjector:
-    """
-    Feeds simulated data into the real system.
-    System cannot distinguish this from real hardware/students.
-    """
+    """Feeds simulated outside-world data into the real system."""
 
-    def inject_bus_position(self, bus_id, lat, lng, sim_time):
-        # Publishes to same MQTT topic a real GPS tracker would use
-        mqtt.publish(f"buses/{bus_id}/position", {
-            "lat": lat, "lng": lng, "timestamp": sim_time
-        })
+    def inject_bus_position(self, bus_id, lat, lng, sim_time, source="paj_gps"): ...
+        # → buses/{bus_id}/position, the topic a real GPS feed would use
 
-    def inject_demand_signal(self, stop_id, corridor_id, destination, weight=1.0):
-        # Hits same API endpoint a real student phone would hit
-        requests.post("/api/demand", json={
-            "stop_id": stop_id,
-            "corridor_id": corridor_id,
-            "destination": destination,
-            "token": generate_unique_token(),
-            "signal_type": "initial",
-            "weight": weight
-        })
+    def inject_demand_signal(self, stop_id, corridor_id, destination, token,
+                             signal_type="initial"): ...
+        # → POST /api/demand, the endpoint a real phone would hit
+        # signal_type: "initial" | "still_waiting" | "transfer"
 
-    def inject_boarding_outcome(self, stop_id, corridor_id, bus_id,
-                                 board_rate=0.8):
-        # Simulates boarding prompt outcomes
-        # board_rate = fraction of waiting students who board
-        # Remainder re-signal as "missed_bus" with weight 1.5
-        ...
+    def inject_door_count(self, bus_id, stop_id, boarded, alighted): ...
+        # → the load interface a real door counter would use
+
+    def inject_driver_tap(self, bus_id, level=None, left_people_behind=False): ...
+        # level: "empty" | "half" | "full"
+
+    def inject_driver_answer(self, bus_id, instruction_id, answer): ...
+        # answer: "ok" | "cant" | None (no answer)
+
+    def inject_rider_crowd_tap(self, bus_id, level): ...
 ```
 
-### How Bus Position Drives Everything
-
-Bus position is the heartbeat of the entire system in PSM2. All downstream events derive from it:
+### Bus position drives the events
 
 ```
-Injector publishes bus GPS position every 5 seconds
-    → Bus Agent updates current_position
-    → ETA recalculated for all stops ahead on corridor
-    → Student app receives updated ETA via WebSocket
-    → When bus GPS enters stop geofence:
-        → Bus Agent logs "arrived at {stop_id}"
-        → Stop Agent records last_bus_visit_time
-        → Boarding prompt fires to app users waiting at that stop (1 min delay)
-    → When bus GPS exits stop geofence:
-        → Bus Agent logs "departed {stop_id}"
-        → Stop Agent resets is_claimed, re-evaluates residual demand
+Position update
+  → Bus Agent updates where it is
+  → arrival times recalculated for the stops ahead
+  → bus enters a stop's geofence: "arrived"; boarding happens; door counter reads
+  → bus leaves the geofence: "departed"; Bus Agent reports whether it left full;
+    Stop Agent updates its count; students with the app open get "did you get on?"
 ```
 
-This is why the design is location-based, not schedule-based. The trigger for every event — ETA update, boarding prompt, Stop Agent reset — is the bus's GPS position crossing a stop geofence. Not a clock. Not a timetable lookup. The position is the ground truth.
-
-### Boarding Outcome Simulation
+### Boarding in the simulator
 
 ```python
-def simulate_boarding_at_stop(stop_id, corridor_id, bus_id,
-                               waiting_count, bus_capacity_remaining,
-                               board_rate=0.8, scenario_config=None):
+def simulate_stop_visit(bus, stop, sim_time):
+    seats_left = bus.seats - bus.load
+    crowd = real_crowd[stop.id][bus.corridor_id]
+    boarding = min(crowd, seats_left)
+    left_behind = crowd - boarding
 
-    board_rate = scenario_config.get("board_rate", board_rate)
-    actual_boarders = min(
-        int(waiting_count * board_rate),
-        bus_capacity_remaining
-    )
-    missed = waiting_count - actual_boarders
+    injector.inject_door_count(bus.id, stop.id, boarded=boarding, alighted=alighting_here(bus, stop))
+    real_crowd[stop.id][bus.corridor_id] = left_behind
 
-    # Inject missed-bus re-signals with higher weight
-    for _ in range(missed):
-        injector.inject_demand_signal(
-            stop_id, corridor_id,
-            signal_type="missed_bus",
-            weight=1.5
-        )
-
-    return actual_boarders, missed
+    if left_behind > 0:
+        if scenario.driver_taps:                       # how reliably drivers tap is a setting
+            injector.inject_driver_tap(bus.id, left_people_behind=True)
+        for person in app_users_among(left_behind, stop.app_share):
+            injector.inject_demand_signal(stop.id, bus.corridor_id, person.destination,
+                                          person.token, signal_type="still_waiting")
+    return boarding, left_behind
 ```
 
-`board_rate` is a scenario parameter. Set it low to simulate a full bus leaving students behind. Set it high for normal conditions. This gives full control over test scenarios.
+A left-behind person is one person. (The old "1.5× missed-bus weight" is retired: ORBIT now counts people against seats, and a person and a half doesn't fit that.)
 
-### Report Statement for PSM2 Methodology
+### The demand engine — the simulator's crowd model
 
-> *"PSM2 system validation uses a software-in-the-loop approach. All system components — student app, MAS backend, fleet dashboard — are fully implemented and operational. External data sources (bus GPS positions, student demand signals, boarding outcomes) are provided by a virtual injector module that publishes to the same interfaces real hardware and real students would use. The system processes simulated data identically to real data and has no knowledge of the data source. Bus position is the primary ground truth: all downstream events including ETA calculation, boarding prompt triggering, and Stop Agent queue resets derive from bus GPS crossing stop geofences — not from a schedule or clock. This location-based event model ensures the system behaves correctly in deployment when real GPS data replaces the injector, requiring no architectural changes."*
+Generates the real crowd per stop per tick from class-schedule patterns. Not random: it spikes 15–20 minutes before lectures, drops after a bus boards, varies by college size, and is flat and low on weekends.
+
+It has a second, smaller job: it gives ORBIT the schedule-based `expected` number for each stop and time (used for the dashboard and the strange-count check — never as a trigger, and not produced for CP or Jalan Amal).
+
+```python
+LECTURE_SLOTS_HOURS = [8, 9, 10, 11, 12, 14, 15, 16, 17]
+PRE_LECTURE_WINDOW = 20  # minutes before a slot = peak boarding window
+
+STOP_PROFILES = {
+    "kdoj_bus_e": {"baseline": 3, "peak_multiplier": 6,
+                   "peak_destinations": ["cluster_t02", "cluster_t08"]},
+    "klg_bus_e":  {"baseline": 2, "peak_multiplier": 5, "peak_destinations": ["cluster_t02"]},
+    "kdse_bus_e": {"baseline": 2, "peak_multiplier": 5,
+                   "peak_destinations": ["cluster_t02", "cluster_t08"]},
+    "kp_bus_b":   {"baseline": 3, "peak_multiplier": 5,
+                   "peak_destinations": ["cluster_t02", "kolej_9_10"]},
+    "ktr_bus_f":  {"baseline": 2, "peak_multiplier": 4, "peak_destinations": ["cp", "jalan_amal"]},
+    "ktho_bus_f": {"baseline": 2, "peak_multiplier": 4, "peak_destinations": ["cp"]},
+    "ktdi_bus_f": {"baseline": 2, "peak_multiplier": 4, "peak_destinations": ["cp"]},
+}
+
+def crowd_arrivals(stop_instance: str, sim_time, minutes: float, scenario) -> int:
+    profile = STOP_PROFILES[stop_instance]
+    rate = profile["baseline"]
+    if is_within_pre_lecture_window(sim_time, PRE_LECTURE_WINDOW):
+        rate *= profile["peak_multiplier"] * scenario["peak_scale"]
+    noise = random.uniform(1 - scenario["noise"], 1 + scenario["noise"])
+    return int(rate * minutes * noise)
+```
+
+Destination probabilities per stop and time of day stay as in the earlier version (morning trips to the Cluster, midday and evening back to the colleges). With destination picking in the app, the simulator also draws transfer trips — for example KTR → Cluster: Bus F to CP, then Bus E.
+
+The simulator can also take a **recorded demand history** in place of the engine, and a **proposed timetable** in place of the current one — so a timetable change can be tried against real recorded demand before UTM commits to it.
+
+### Simulation clock
+
+```python
+TICK_SECONDS = 5
+SPEED_MULTIPLIER = 1      # 1×, 5×, 10×, or as fast as possible for the observation months
+```
 
 ---
 
-## System Maturity Path
+## Scenario library
 
-| Phase | Demand Source | What Changes |
+The four old presets (`normal_day`, `peak_morning`, `exam_week`, `low_demand`) become a library. Each scenario sets the crowd, the app share, how reliably drivers tap, and any disruption.
+
+| Scenario | What it shows |
+|---|---|
+| Normal weekday | The baseline |
+| First week of semester | Heavier, less predictable crowds |
+| Exam week | Fewer people, spread out; odd peaks |
+| Big event (convocation, career fair) | A crowd the schedule model doesn't expect — the strange-count flag |
+| Heavy rain | More riders everywhere at once — several routes want the spare |
+| Friday (12:40–14:00 gap), weekend, public holiday | Service-hour rules |
+| A messy day | A bus breaks down; a jam on one route; a driver says "Can't" |
+| Zero app users | ORBIT still works from driver taps and door counters |
+
+To build over time with Samy's campus knowledge: the academic calendar, recurring events, and habits like "everyone heads to KDOJ after the 5 pm class".
+
+---
+
+## Observation mode in the simulator
+
+For the FYP, the simulator plays the months a real deployment would spend watching.
+
+1. Run many simulated days with the rollout stage set to `observe`.
+2. ORBIT logs what it would have done each time (`SHADOW_WOULD_SEND`) and sends nothing.
+3. Compare with what happened: did that bus really leave people behind?
+4. The report reads: "ORBIT would have sent a spare 9 times; on 8 the bus really did leave people behind."
+5. The same runs give the app share per stop and the first planning reports.
+
+---
+
+## Validation checks
+
+Framed as software validation: the system meets its requirements under simulated demand. Run the same scenario twice — timetable only, and with ORBIT acting — as a **performance acceptance test**.
+
+| Check | What is measured |
+|---|---|
+| People left behind | Count per departure and per day |
+| Wait after being left behind | Minutes until the next seat |
+| Empty runs | Trips that ran with almost nobody on board |
+| Spare trips | How many, and how many were needed |
+| Observation hit rate | Of the times ORBIT would have acted, how often it was right |
+| Bunching | How often two buses on a route run too close together |
+| Timetable kept | No scheduled departure removed or made later by an overflow response |
+
+Pass marks are placeholders to set at build time.
+
+---
+
+## Deployment path — which demand sources are real
+
+| Stage | What is real | What changes |
 |---|---|---|
-| **Phase 1 — PSM1** | Class schedule model (this module) | Simulation only |
-| **Phase 2 — Early deployment** | Driver tap on full bus | Real leftover signal |
-| **Phase 3 — With APC** | Infrared door counters on buses | Real boarding/alighting data |
-| **Phase 4 — Skyss level** | Historical APC patterns override schedule | Self-improving demand model |
+| FYP demo | Nothing physical; the simulator plays it all | — |
+| Observation | App + driver taps + whatever GPS exists | Real data starts; ORBIT only watches |
+| With door counters | Infrared door counters on buses | Real load per trip; app share can be learned properly |
+| Mature | History replaces the class-schedule model | Reports and the spare's waiting spots come from real patterns |
 
-The only hardware needed for Phase 3: **bidirectional infrared door counter** on each bus door. Cheap, privacy-safe, no stop infrastructure. Same technology as Skyss Norway.
+Door counters are the one piece of hardware worth having: cheap, privacy-safe, nothing to install at stops.
