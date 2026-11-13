@@ -72,7 +72,11 @@ Keep the count of who is waiting at its stop for its route, and publish that sta
 - One 30-minute setting (placeholder): it is both how long a record lives and the one-signal-per-token window. While the record exists a repeat `initial` changes nothing; after it has expired, a new `initial` is a fresh person.
 - Invariant: one token is never counted more than once at a stop and route.
 
-Built shape (Coddy, Task 4): one record per token in a book per stop and route, with a status (`WAITING` / `ASSUMED_BOARDED` / `LEFT_BEHIND`). The invariant is then a property of the data structure. The record keeps **two times**: when the student started waiting (never refreshed — it decides which buses could have left them behind) and when they were last heard from (refreshed by a tap — it drives expiry).
+Built shape (Coddy, Task 4): one record per token in a book per stop and route, with a status (`WAITING` / `ASSUMED_BOARDED` / `LEFT_BEHIND`). The invariant is then a property of the data structure. The record keeps **two times**: `started_waiting_at` (never refreshed — it decides which buses could have left them behind) and `last_heard_at` (refreshed by a "still waiting" or "changed bus" tap — it drives expiry). All taps go through one entry point, `apply_signal`.
+
+`waiting_app` counts everyone who hasn't boarded: `WAITING` and `LEFT_BEHIND`. Only `ASSUMED_BOARDED` is left out.
+
+Accepted limit: if a record has expired, a later tap starts a fresh one, so that person can only be attached to buses that leave after the tap. ORBIT does not claim a left-behind it can't support.
 
 ### When a signal stops counting
 - The student's bus leaves and they don't say "still waiting" → assumed boarded, removed. (No answer = boarded. Locked.)
@@ -89,6 +93,12 @@ Built shape (Coddy, Task 4): one record per token in a book per stop and route, 
 **The trigger (for a spare, decided by the Coordinator):**
 - A left-behind crowd asks for a spare only **until a later bus of that route has left that stop with room**. After that the crowd could have boarded, so no spare is sent.
 - *Example:* the 7:30 leaves full and leaves Ali. The 7:40 comes with empty seats; Ali misses it. At 7:42 he taps "Still waiting". The record says "left behind by the 7:30" — true, and useful for the timetable report. No spare is sent — a bus with room has just been.
+
+*The next two paragraphs are build details proposed by Chatty for Task 6 (13 Nov 2026). Coddy may change them and report; they are not Samy's rulings.*
+
+**When a bus leaves — who is assumed to have boarded.** Only people who were already waiting when it left. With no door counter, all of them (no answer = boarded). With a door counter, only as many as it saw board — the longest-waiting first; the rest stay in the count. A later tap puts anyone back.
+
+**The live state and the history are two things.** The live map (`left_behind_by_departure`) groups the people currently left behind by the last full bus that left them, so its sum is a number of people and nobody is counted twice. If the next bus leaves them too and they tap again, they move to that bus. The history — how many tapped against each departure — is kept in the per-departure snapshot, which only grows; that is what the Coordinator and the planning reports read.
 
 **A snapshot per departure.** When a bus leaves, the Stop Agent keeps, for that departure: how many app users were waiting at that moment, whether that count was flagged as strange, and the "still waiting" taps that arrive later. The live count changes straight after (people removed as boarded, new arrivals), so the Coordinator needs this fixed number to compare with door-counter boardings (Way 1).
 

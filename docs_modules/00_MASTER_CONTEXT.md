@@ -13,7 +13,7 @@
 
 - **PSM1 is complete and submitted.** The thesis is not edited.
 - **Now:** industrial training (Sept 2026 – Feb 2027). Development happens on weekends. PSM2 runs March – July 2027.
-- **Build:** Block 0 is on `main` (`8b005cc`). **The build resumed on 13 Nov 2026.** Coddy synced `docs_modules/` and reworked the Stop Agent to the new design: Task 1 kept; Tasks 2R, 3R and 9 built and confirmed (`81b6e75` on `claude/funny-knuth-w6dibj`); Task 4 built (reported `419bff0`, pushed; 76 tests). Next: Block 1 Task 5.
+- **Build:** Block 0 is on `main` (`8b005cc`). **The build resumed on 13 Nov 2026.** Coddy synced `docs_modules/` and reworked the Stop Agent to the new design: Task 1 kept; Tasks 2R, 3R and 9 built and confirmed (`81b6e75` on `claude/funny-knuth-w6dibj`); Tasks 4 and 5 built — the waiting count from app taps, and the signal types with the lost-track rule (`419bff0` confirmed; `1d67a2e` reported, pushed; 95 tests). Next: Block 1 Task 6.
 - **Design:** locked 11 Nov 2026. Modules updated 13 Nov 2026.
 - **13 Nov 2026, confirmed by Samy:** the small rules filled in while writing the modules (tracker 3.15), and the student adoption plan (below; tracker 3.14). New Project instructions are pasted in.
 - **13 Nov 2026 (afternoon), refined with Samy after Coddy's sync report:** three ways to know people were left behind (the driver is asked, not expected to remember); a late "still waiting" tap always counts; holding needs real GPS (tracker 3.16–3.17).
@@ -211,7 +211,7 @@ The PSM1 use case map (UC1–UC12) was accepted by the panel and is part of the 
 | Student app | Frontend | React 18 + Vite PWA | Prototype built (old flow) |
 | Student app | Stop detection | Browser Geolocation + server-side geofence check | Prototype only |
 | Driver mode | Screen inside the PWA | React | Not built |
-| Backend | Agents | Python 3.11+ (suite has passed on 3.11.18 and 3.12.10; no repo pin) | Stop Agent state and waiting count built (Tasks 1, 2R, 3R, 9, 4) |
+| Backend | Agents | Python 3.11+ (suite has passed on 3.11.18 and 3.12.10; no repo pin) | Stop Agent state, waiting count and signal types built (Tasks 1, 2R, 3R, 9, 4, 5) |
 | Backend | Messaging | Eclipse Mosquitto (MQTT), paho-mqtt 2.1.0 | Dependency only |
 | Backend | Route map | NetworkX 3.6.1 (DiGraph, Dijkstra) | Bus E, one path built |
 | Backend | Strange-count check | scikit-learn Isolation Forest | Not built |
@@ -219,7 +219,7 @@ The PSM1 use case map (UC1–UC12) was accepted by the panel and is part of the 
 | Dashboard | Frontend | React 18 + Vite | Static-replay prototype (old flow) |
 | Bus position | Sources | PAJ GPS → driver device → timetable estimate | Simulated |
 | Database | Persistence | SQLite | Not built |
-| Tests | Tooling | pytest, Hypothesis, MutPy or cosmic-ray | pytest in use (76 passing) |
+| Tests | Tooling | pytest, Hypothesis, MutPy or cosmic-ray | pytest and Hypothesis 6.170.15 in use (95 passing, one state-machine property test) |
 
 ---
 
