@@ -17,6 +17,7 @@ __pycache__/
 *.pyc
 *.db
 .pytest_cache/
+.hypothesis/
 
 # Large demo video: kept on disk, no longer tracked as a source file.
 # Specific path only — the other three assets/ videos stay tracked.

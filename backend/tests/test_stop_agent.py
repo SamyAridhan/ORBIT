@@ -6,6 +6,8 @@ Task 3R — CP / Jalan Amal: no `expected` there, everything else unchanged (TC1
 Task 2R — StopState is built at every level; nothing gates it (TC101).
 Task 4  — waiting count from app signals: one record per token, expiry, feeds
           waiting_app (R1; TC107's Stop-Agent half through a real count).
+Task 5  — signal types, the lost-track rule, two times on a record (TC103,
+          TC151, TC152) and the TC150 state machine (Hypothesis).
 
 Run from backend/ with flat imports (from agents.stop_agent ...).
 """
@@ -15,14 +17,20 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from hypothesis import settings
+from hypothesis import strategies as st
+from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
+
 from agents.stop_agent import (
     NO_EXPECTED_STOP_IDS,
     DemandLevel,
     SignalBook,
     SignalRecord,
     SignalStatus,
+    SignalType,
     StopState,
     add_initial_signal,
+    apply_signal,
     build_stop_state,
     classify_demand,
     expire_signals,
@@ -235,12 +243,20 @@ def test_to_dict_matches_message_shape():
 # Task 4 — waiting count from app signals (R1)
 # ---------------------------------------------------------------------------
 
+MIN = timedelta(minutes=1)
+
 
 def _book_with(stop_id, corridor_id, tokens, at):
     book = new_signal_book(stop_id, corridor_id)
     for t in tokens:
         book = add_initial_signal(book, t, at)
     return book
+
+
+def _with_status(book, token, status, **changes):
+    recs = dict(book.records)
+    recs[token] = replace(recs[token], status=status, **changes)
+    return SignalBook(book.stop_id, book.corridor_id, recs)
 
 
 def test_new_book_is_empty_and_counts_zero():
@@ -250,32 +266,30 @@ def test_new_book_is_empty_and_counts_zero():
     assert waiting_count(book) == 0
 
 
-def test_initial_signal_adds_one_waiting_record():
+def test_initial_signal_adds_one_waiting_record_with_both_times():
     book = add_initial_signal(new_signal_book("kdoj", "E"), "tok-a", T0, destination="cluster_t02")
     assert waiting_count(book) == 1
     rec = book.records["tok-a"]
     assert rec.token == "tok-a"
-    assert rec.received_at == T0
+    assert rec.started_waiting_at == T0
+    assert rec.last_heard_at == T0
     assert rec.destination == "cluster_t02"
     assert rec.status is SignalStatus.WAITING
     assert rec.left_by_departure is None
 
 
 def test_distinct_tokens_are_distinct_people():
-    book = _book_with("kdoj", "E", ["a", "b", "c"], T0)
-    assert waiting_count(book) == 3
+    assert waiting_count(_book_with("kdoj", "E", ["a", "b", "c"], T0)) == 3
 
 
-def test_repeat_initial_from_same_token_is_ignored_and_untouched():
-    # One token is never counted more than once at a stop and route (01, TC150's
-    # invariant). A repeat does not add, and does not refresh the clock or
-    # overwrite the destination.
+def test_tc103_repeat_initial_within_the_window_is_ignored_and_untouched():
+    # TC103: the same token signals twice within 30 min -> counted once. The repeat
+    # does not add, does not refresh either clock, does not overwrite the destination.
     first = add_initial_signal(new_signal_book("kdoj", "E"), "tok-a", T0, destination="cluster_t02")
-    again = add_initial_signal(first, "tok-a", T0 + timedelta(minutes=10), destination="cluster_t08")
+    again = add_initial_signal(first, "tok-a", T0 + 10 * MIN, destination="cluster_t08")
     assert waiting_count(again) == 1
     assert again.records["tok-a"] == first.records["tok-a"]
-    assert again.records["tok-a"].received_at == T0
-    assert again.records["tok-a"].destination == "cluster_t02"
+    assert again is first                                   # literally nothing changed
 
 
 def test_empty_token_raises():
@@ -292,7 +306,7 @@ def test_operations_are_pure_and_the_book_is_read_only():
     assert waiting_count(later) == 2             # ...and by expire
     assert waiting_count(expired) == 0
     with pytest.raises(TypeError):
-        book.records["z"] = SignalRecord("z", T0)  # type: ignore[index]
+        book.records["z"] = SignalRecord("z", T0, T0)  # type: ignore[index]
     with pytest.raises(FrozenInstanceError):
         book.stop_id = "klg"  # type: ignore[misc]
 
@@ -307,8 +321,8 @@ def test_operations_are_pure_and_the_book_is_read_only():
         (timedelta(hours=3), False),
     ],
 )
-def test_expiry_boundary_at_default_placeholder(age, kept):
-    assert SIGNAL_EXPIRY == timedelta(minutes=30)     # the placeholder in config/thresholds.py
+def test_expiry_boundary_at_the_one_placeholder(age, kept):
+    assert SIGNAL_EXPIRY == timedelta(minutes=30)     # the one 30-min setting in config/thresholds.py
     book = add_initial_signal(new_signal_book("kdoj", "E"), "a", T0)
     assert ("a" in expire_signals(book, T0 + age).records) is kept
 
@@ -316,10 +330,9 @@ def test_expiry_boundary_at_default_placeholder(age, kept):
 def test_expiry_keeps_fresh_and_drops_stale_in_one_book():
     book = new_signal_book("kdoj", "E")
     book = add_initial_signal(book, "old", T0)
-    book = add_initial_signal(book, "mid", T0 + timedelta(minutes=10))
-    book = add_initial_signal(book, "new", T0 + timedelta(minutes=29))
-    now = T0 + timedelta(minutes=35)
-    after = expire_signals(book, now)
+    book = add_initial_signal(book, "mid", T0 + 10 * MIN)
+    book = add_initial_signal(book, "new", T0 + 29 * MIN)
+    after = expire_signals(book, T0 + 35 * MIN)
     assert set(after.records) == {"mid", "new"}
     assert after.records["mid"] == book.records["mid"]   # survivors are unchanged
     assert after.stop_id == "kdoj" and after.corridor_id == "E"
@@ -327,41 +340,39 @@ def test_expiry_keeps_fresh_and_drops_stale_in_one_book():
 
 def test_expiry_honours_a_custom_window():
     book = add_initial_signal(new_signal_book("kdoj", "E"), "a", T0)
-    assert "a" in expire_signals(book, T0 + timedelta(minutes=45), expiry=timedelta(hours=1)).records
-    assert "a" not in expire_signals(book, T0 + timedelta(minutes=5), expiry=timedelta(minutes=5)).records
+    assert "a" in expire_signals(book, T0 + 45 * MIN, expiry=timedelta(hours=1)).records
+    assert "a" not in expire_signals(book, T0 + 5 * MIN, expiry=5 * MIN).records
 
 
 def test_expiry_applies_to_every_status():
     # A stale record is stale whatever ORBIT last believed about the person.
     book = _book_with("kdoj", "E", ["w", "b", "l"], T0)
-    recs = dict(book.records)
-    recs["b"] = replace(recs["b"], status=SignalStatus.ASSUMED_BOARDED)
-    recs["l"] = replace(recs["l"], status=SignalStatus.LEFT_BEHIND, left_by_departure="E1-0730")
-    book = SignalBook("kdoj", "E", recs)
-    assert dict(expire_signals(book, T0 + timedelta(minutes=30)).records) == {}
+    book = _with_status(book, "b", SignalStatus.ASSUMED_BOARDED)
+    book = _with_status(book, "l", SignalStatus.LEFT_BEHIND, left_by_departure="dep-1")
+    assert dict(expire_signals(book, T0 + 30 * MIN).records) == {}
 
 
-def test_waiting_count_counts_only_waiting_status():
+def test_waiting_count_excludes_only_assumed_boarded():
+    # waiting_app = people who haven't boarded. A LEFT_BEHIND person is still waiting;
+    # only ASSUMED_BOARDED drops out. (Corrects Task 4, which counted WAITING only.)
     book = _book_with("kdoj", "E", ["w1", "w2", "b", "l"], T0)
-    recs = dict(book.records)
-    recs["b"] = replace(recs["b"], status=SignalStatus.ASSUMED_BOARDED)
-    recs["l"] = replace(recs["l"], status=SignalStatus.LEFT_BEHIND, left_by_departure="E1-0730")
-    assert waiting_count(SignalBook("kdoj", "E", recs)) == 2
+    book = _with_status(book, "b", SignalStatus.ASSUMED_BOARDED)
+    book = _with_status(book, "l", SignalStatus.LEFT_BEHIND, left_by_departure="dep-1")
+    assert waiting_count(book) == 3
 
 
 def test_waiting_app_from_book_expires_then_counts_without_changing_the_book():
     book = new_signal_book("kdse", "E")
     book = add_initial_signal(book, "stale", T0)
-    book = add_initial_signal(book, "fresh", T0 + timedelta(minutes=20))
-    now = T0 + timedelta(minutes=31)
-    assert waiting_app_from_book(book, now) == 1
+    book = add_initial_signal(book, "fresh", T0 + 20 * MIN)
+    assert waiting_app_from_book(book, T0 + 31 * MIN) == 1
     assert set(book.records) == {"stale", "fresh"}     # the caller's book is untouched
 
 
 def test_real_count_feeds_stop_state():
     # R1: the per-tick state carries the real waiting count. 7 tokens at KDSE -> 7, MEDIUM.
     book = _book_with("kdse", "E", [f"t{i}" for i in range(7)], T0)
-    state = build_stop_state("kdse", "E", waiting_app=waiting_app_from_book(book, T0 + timedelta(minutes=1)))
+    state = build_stop_state("kdse", "E", waiting_app=waiting_app_from_book(book, T0 + MIN))
     assert state.waiting_app == 7
     assert state.level is DemandLevel.MEDIUM
 
@@ -374,3 +385,180 @@ def test_tc107_stop_agent_half_through_a_real_count_at_cp():
     assert state.waiting_app == 3
     assert state.level is DemandLevel.LOW
     assert state.expected is None
+
+
+# ---------------------------------------------------------------------------
+# Task 5 — signal types, the lost-track rule, two times on a record
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("kind", list(SignalType))
+def test_any_signal_from_an_unknown_token_creates_one_waiting_person(kind):
+    book = apply_signal(new_signal_book("kdoj", "E"), "tok", kind, T0, destination="cluster_t02")
+    rec = book.records["tok"]
+    assert waiting_count(book) == 1
+    assert rec.status is SignalStatus.WAITING
+    assert rec.started_waiting_at == T0 and rec.last_heard_at == T0
+    assert rec.destination == "cluster_t02"
+
+
+def test_tc151_still_waiting_from_an_expired_token_creates_the_record():
+    # TC151: the record expired (forgotten); a late "still waiting" creates it again,
+    # counted as one person. Expiry is bookkeeping, not evidence that nobody is there.
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "tok", T0)
+    book = expire_signals(book, T0 + 40 * MIN)
+    assert waiting_count(book) == 0
+    book = apply_signal(book, "tok", SignalType.STILL_WAITING, T0 + 40 * MIN)
+    assert waiting_count(book) == 1
+    rec = book.records["tok"]
+    assert rec.started_waiting_at == T0 + 40 * MIN      # ORBIT had forgotten the original start
+    assert rec.last_heard_at == T0 + 40 * MIN
+
+
+def test_tc151_still_waiting_from_a_never_seen_token_creates_the_record():
+    book = apply_signal(new_signal_book("kdoj", "E"), "ghost", SignalType.STILL_WAITING, T0)
+    assert waiting_count(book) == 1
+    assert book.records["ghost"].status is SignalStatus.WAITING
+
+
+@pytest.mark.parametrize("kind", list(SignalType))
+def test_tc152_any_tap_restores_an_assumed_boarded_person_as_one(kind):
+    # TC152: ORBIT assumed they boarded; they tap "I'm waiting" (or anything) ->
+    # restored like a "still waiting"; one person, never two; original start kept.
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "tok", T0, destination="cluster_t02")
+    book = _with_status(book, "tok", SignalStatus.ASSUMED_BOARDED)
+    assert waiting_count(book) == 0
+    back = apply_signal(book, "tok", kind, T0 + 12 * MIN)
+    rec = back.records["tok"]
+    assert waiting_count(back) == 1 and len(back.records) == 1
+    assert rec.status is SignalStatus.WAITING
+    assert rec.started_waiting_at == T0                 # never refreshed
+    assert rec.last_heard_at == T0 + 12 * MIN           # refreshed
+    assert rec.left_by_departure is None
+    assert rec.destination == "cluster_t02"             # kept when the tap gives none
+
+
+def test_restore_clears_a_previous_departure_attachment():
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "tok", T0)
+    book = _with_status(book, "tok", SignalStatus.ASSUMED_BOARDED, left_by_departure="dep-old")
+    back = apply_signal(book, "tok", SignalType.STILL_WAITING, T0 + MIN)
+    assert back.records["tok"].left_by_departure is None
+
+
+@pytest.mark.parametrize("kind", [SignalType.STILL_WAITING, SignalType.TRANSFER])
+@pytest.mark.parametrize("status", [SignalStatus.WAITING, SignalStatus.LEFT_BEHIND])
+def test_updates_refresh_last_heard_only(kind, status):
+    # still_waiting / transfer on a person ORBIT already has: last_heard_at moves,
+    # started_waiting_at does not, status is left for Task 6, no second record.
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "tok", T0)
+    book = _with_status(book, "tok", status, left_by_departure="dep-1" if status is SignalStatus.LEFT_BEHIND else None)
+    after = apply_signal(book, "tok", kind, T0 + 7 * MIN)
+    rec = after.records["tok"]
+    assert len(after.records) == 1 and waiting_count(after) == 1
+    assert rec.started_waiting_at == T0
+    assert rec.last_heard_at == T0 + 7 * MIN
+    assert rec.status is status
+    assert rec.left_by_departure == book.records["tok"].left_by_departure
+
+
+@pytest.mark.parametrize("status", [SignalStatus.WAITING, SignalStatus.LEFT_BEHIND])
+def test_repeat_initial_on_a_known_person_changes_nothing_not_even_the_clock(status):
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "tok", T0)
+    book = _with_status(book, "tok", status)
+    assert apply_signal(book, "tok", SignalType.INITIAL, T0 + 29 * MIN) is book
+
+
+def test_repeat_initial_taps_cannot_keep_a_record_alive():
+    # Chatty's question: with expiry on last_heard_at, can repeat `initial` taps keep a
+    # record alive past the window? No — they never touch the clock.
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "tok", T0)
+    for m in (5, 10, 15, 20, 25, 29):
+        book = apply_signal(book, "tok", SignalType.INITIAL, T0 + m * MIN)
+    assert book.records["tok"].last_heard_at == T0
+    assert "tok" not in expire_signals(book, T0 + 30 * MIN).records
+    # ...after which a new `initial` is a fresh person with fresh times.
+    fresh = add_initial_signal(expire_signals(book, T0 + 30 * MIN), "tok", T0 + 30 * MIN)
+    assert fresh.records["tok"].started_waiting_at == T0 + 30 * MIN
+
+
+def test_still_waiting_does_keep_a_record_alive():
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "tok", T0)
+    book = apply_signal(book, "tok", SignalType.STILL_WAITING, T0 + 25 * MIN)
+    assert "tok" in expire_signals(book, T0 + 40 * MIN).records
+    assert "tok" not in expire_signals(book, T0 + 55 * MIN).records
+    assert book.records["tok"].started_waiting_at == T0       # the start never moved
+
+
+def test_update_with_a_destination_replaces_the_stored_one():
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "tok", T0, destination="cluster_t02")
+    book = apply_signal(book, "tok", SignalType.TRANSFER, T0 + MIN, destination="cluster_t08")
+    assert book.records["tok"].destination == "cluster_t08"
+    book = apply_signal(book, "tok", SignalType.STILL_WAITING, T0 + 2 * MIN)
+    assert book.records["tok"].destination == "cluster_t08"   # none given: kept
+
+
+# ---------------------------------------------------------------------------
+# TC150 — one token is never counted more than once at a stop and route
+# (Hypothesis state machine over any mix of signals, expiry and Task 6's removal)
+# ---------------------------------------------------------------------------
+
+TOKENS = st.sampled_from(["t1", "t2", "t3", "t4", "t5"])
+KINDS = st.sampled_from(list(SignalType))
+
+
+class OneTokenOnePerson(RuleBasedStateMachine):
+    """Model: per token, ORBIT believes exactly one of {absent, waiting, boarded}.
+
+    The real book must never hold two records for one token, must count a token
+    at most once, must never refresh `started_waiting_at` while a record exists,
+    and must agree with the model about who counts.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.book = new_signal_book("kdoj", "E")
+        self.now = T0
+        self.model: dict[str, str] = {}       # token -> "waiting" | "boarded"
+        self.started: dict[str, datetime] = {}
+
+    @rule(token=TOKENS, kind=KINDS)
+    def tap(self, token, kind):
+        before = self.model.get(token)
+        self.book = apply_signal(self.book, token, kind, self.now)
+        if before is None:
+            self.model[token] = "waiting"; self.started[token] = self.now
+        elif before == "boarded":
+            self.model[token] = "waiting"
+        # before == "waiting": nothing changes in the model
+
+    @rule(minutes=st.integers(min_value=1, max_value=20))
+    def time_passes(self, minutes):
+        self.now += minutes * MIN
+        self.book = expire_signals(self.book, self.now)
+        for t in list(self.model):
+            if t not in self.book.records:
+                del self.model[t]; del self.started[t]
+        assert set(self.model) == set(self.book.records)
+
+    @rule(token=TOKENS)
+    def bus_leaves_and_they_dont_answer(self, token):
+        # Task 6's removal, faked: a known waiting person is assumed boarded.
+        if token in self.book.records and self.book.records[token].status is not SignalStatus.ASSUMED_BOARDED:
+            self.book = _with_status(self.book, token, SignalStatus.ASSUMED_BOARDED)
+            self.model[token] = "boarded"
+
+    @invariant()
+    def one_record_per_token_and_counted_at_most_once(self):
+        assert all(r.token == t for t, r in self.book.records.items())
+        assert waiting_count(self.book) <= len(self.book.records)
+        assert waiting_count(self.book) == sum(1 for v in self.model.values() if v == "waiting")
+
+    @invariant()
+    def started_waiting_never_moves_and_never_after_last_heard(self):
+        for t, r in self.book.records.items():
+            assert r.started_waiting_at == self.started[t]
+            assert r.started_waiting_at <= r.last_heard_at <= self.now
+
+
+TestTC150OneTokenOnePerson = OneTokenOnePerson.TestCase
+TestTC150OneTokenOnePerson.settings = settings(max_examples=200, stateful_step_count=40, deadline=None)
