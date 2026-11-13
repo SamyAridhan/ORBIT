@@ -12,10 +12,16 @@ Block 1 state of this module:
             only special case is that no schedule-based `expected` number is
             produced for them: NO_EXPECTED_STOP_IDS + produces_expected.          TC108
 
-Not here yet (later Block 1 tasks feed the fields below): the waiting count from
-app signals (Task 4), one signal per token (Task 5), "still waiting" / left_behind
-(Task 6), the strange-count flag (Task 7), transfers (Task 8). Until then those
-fields carry plain defaults. MQTT publishing is Block 5.
+  Task 4  — the waiting count from app signals: one SignalRecord per token in a
+            SignalBook (one book per stop + route). add_initial_signal,
+            expire_signals, waiting_count, waiting_app_from_book. Feeds
+            StopState.waiting_app.                                             R1, TC107
+
+Not here yet: the per-token window and the `still_waiting` / `transfer` signal
+types (Task 5), the after-the-bus transitions and left_behind (Task 6), the
+strange-count flag (Task 7), transfers (Task 8). Until then those fields carry
+plain defaults; the statuses a record can take are already defined so Tasks 5–8
+update the record rather than add structures. MQTT publishing is Block 5.
 
 This module never imports from simulation/ — agents must not know the simulator
 exists (AGENTS_BACKEND.md section 4).
@@ -24,10 +30,12 @@ exists (AGENTS_BACKEND.md section 4).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
-from enum import IntEnum
+from datetime import datetime, timedelta
+from enum import Enum, IntEnum
 from types import MappingProxyType
 from typing import Any, Mapping
+
+from config.thresholds import SIGNAL_EXPIRY
 
 
 # ---------------------------------------------------------------------------
@@ -218,3 +226,128 @@ def build_stop_state(
         flagged=flagged,
         last_bus_visit_time=last_bus_visit_time,
     )
+
+
+# ---------------------------------------------------------------------------
+# Task 4 — the waiting count from app signals: one record per token
+# ---------------------------------------------------------------------------
+
+
+class SignalStatus(str, Enum):
+    """What ORBIT currently believes about one person (one token) at a stop + route.
+
+    Task 4 only ever produces ``WAITING``. Tasks 5–6 move a record between the
+    statuses ("no answer = boarded"; "still waiting" puts a person back as one
+    person); Task 8 moves a record between books. One record per token means one
+    token is never counted more than once at a stop and route (01 "One phone is
+    one person"; TC150 is the property test for it).
+    """
+
+    WAITING = "waiting"
+    ASSUMED_BOARDED = "assumed_boarded"
+    LEFT_BEHIND = "left_behind"
+
+
+@dataclass(frozen=True)
+class SignalRecord:
+    """One person's signal at one stop for one route, keyed by their anonymous token.
+
+    Attributes:
+        token: the app's anonymous token. No name, no student ID (S9).
+        received_at: when the signal that put the person in their current status
+            arrived. Expiry is measured from here.
+        destination: the stop they picked, if the app sent one (used for trip
+            totals later; not needed to count).
+        status: see :class:`SignalStatus`.
+        left_by_departure: the departure that left them, once a "still waiting"
+            tap says so (Task 6). ``None`` until then.
+    """
+
+    token: str
+    received_at: datetime
+    destination: str | None = None
+    status: SignalStatus = SignalStatus.WAITING
+    left_by_departure: str | None = None
+
+
+@dataclass(frozen=True)
+class SignalBook:
+    """All known tokens for one Stop Agent (one stop, one route). Immutable.
+
+    ``records`` is a read-only ``token -> SignalRecord`` view. Every operation
+    below returns a new book and leaves its input untouched, so the functions
+    are pure: time is passed in, nothing is read from a clock or from
+    ``simulation/``.
+    """
+
+    stop_id: str
+    corridor_id: str
+    records: Mapping[str, SignalRecord]
+
+
+def new_signal_book(stop_id: str, corridor_id: str) -> SignalBook:
+    """An empty book for ``stop_id`` on route ``corridor_id``."""
+    return SignalBook(stop_id=stop_id, corridor_id=corridor_id, records=MappingProxyType({}))
+
+
+def _with_records(book: SignalBook, records: dict[str, SignalRecord]) -> SignalBook:
+    return SignalBook(
+        stop_id=book.stop_id, corridor_id=book.corridor_id, records=MappingProxyType(records)
+    )
+
+
+def add_initial_signal(
+    book: SignalBook, token: str, now: datetime, destination: str | None = None
+) -> SignalBook:
+    """Record an ``initial`` ("I'm waiting") signal. Implements Block 1 Task 4 (R1).
+
+    A token not yet in the book gets one ``WAITING`` record stamped ``now``. A token
+    already in the book is left exactly as it is — a repeat ``initial`` never adds
+    a second person and never refreshes the clock (01: "accepted once per token,
+    per stop, per route … a repeat is ignored silently"). Task 5 adds the explicit
+    30-minute window and the other signal types; Task 4's rule is simply that the
+    book holds at most one record per token.
+
+    Raises:
+        ValueError: on an empty token.
+    """
+    if not token:
+        raise ValueError("token must be a non-empty string")
+    if token in book.records:
+        return book
+    records = dict(book.records)
+    records[token] = SignalRecord(token=token, received_at=now, destination=destination)
+    return _with_records(book, records)
+
+
+def expire_signals(
+    book: SignalBook, now: datetime, expiry: timedelta = SIGNAL_EXPIRY
+) -> SignalBook:
+    """Drop every record whose ``received_at`` is ``expiry`` or more before ``now``.
+
+    Implements 01 "When a signal stops counting — the signal gets too old".
+    ``expiry`` defaults to the placeholder in ``config/thresholds.py``. A record
+    exactly ``expiry`` old is dropped; one a tick younger is kept. Applies to
+    every status: a stale record is stale whatever ORBIT last believed about it.
+    """
+    kept = {t: r for t, r in book.records.items() if now - r.received_at < expiry}
+    if len(kept) == len(book.records):
+        return book
+    return _with_records(book, kept)
+
+
+def waiting_count(book: SignalBook) -> int:
+    """How many people the book currently holds as ``WAITING``. One per token."""
+    return sum(1 for r in book.records.values() if r.status is SignalStatus.WAITING)
+
+
+def waiting_app_from_book(
+    book: SignalBook, now: datetime, expiry: timedelta = SIGNAL_EXPIRY
+) -> int:
+    """The ``waiting_app`` number for a report tick: expire stale signals, then count.
+
+    This is what feeds :func:`build_stop_state` (R1; the Stop-Agent half of TC107
+    through a real count). It does not change the caller's book — call
+    :func:`expire_signals` and keep the result if the stale records should go.
+    """
+    return waiting_count(expire_signals(book, now, expiry))

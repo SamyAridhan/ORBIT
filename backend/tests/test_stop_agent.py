@@ -4,23 +4,34 @@ Task 1  — demand level: every band and fencepost (TC102), negative raises.
 Task 3R — CP / Jalan Amal: no `expected` there, everything else unchanged (TC108);
           n24 / ktc are routing nodes, not special here.
 Task 2R — StopState is built at every level; nothing gates it (TC101).
+Task 4  — waiting count from app signals: one record per token, expiry, feeds
+          waiting_app (R1; TC107's Stop-Agent half through a real count).
 
 Run from backend/ with flat imports (from agents.stop_agent ...).
 """
 
-from dataclasses import FrozenInstanceError
-from datetime import datetime
+from dataclasses import FrozenInstanceError, replace
+from datetime import datetime, timedelta
 
 import pytest
 
 from agents.stop_agent import (
     NO_EXPECTED_STOP_IDS,
     DemandLevel,
+    SignalBook,
+    SignalRecord,
+    SignalStatus,
     StopState,
+    add_initial_signal,
     build_stop_state,
     classify_demand,
+    expire_signals,
+    new_signal_book,
     produces_expected,
+    waiting_app_from_book,
+    waiting_count,
 )
+from config.thresholds import SIGNAL_EXPIRY
 
 # ---------------------------------------------------------------------------
 # Task 1 — demand level (TC102)
@@ -218,3 +229,148 @@ def test_to_dict_matches_message_shape():
         "last_bus_visit_time": "2026-03-23T07:00:00",
     }
     assert type(d["left_behind_by_departure"]) is dict   # a plain dict, not the read-only view
+
+
+# ---------------------------------------------------------------------------
+# Task 4 — waiting count from app signals (R1)
+# ---------------------------------------------------------------------------
+
+
+def _book_with(stop_id, corridor_id, tokens, at):
+    book = new_signal_book(stop_id, corridor_id)
+    for t in tokens:
+        book = add_initial_signal(book, t, at)
+    return book
+
+
+def test_new_book_is_empty_and_counts_zero():
+    book = new_signal_book("kdoj", "E")
+    assert book.stop_id == "kdoj" and book.corridor_id == "E"
+    assert dict(book.records) == {}
+    assert waiting_count(book) == 0
+
+
+def test_initial_signal_adds_one_waiting_record():
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "tok-a", T0, destination="cluster_t02")
+    assert waiting_count(book) == 1
+    rec = book.records["tok-a"]
+    assert rec.token == "tok-a"
+    assert rec.received_at == T0
+    assert rec.destination == "cluster_t02"
+    assert rec.status is SignalStatus.WAITING
+    assert rec.left_by_departure is None
+
+
+def test_distinct_tokens_are_distinct_people():
+    book = _book_with("kdoj", "E", ["a", "b", "c"], T0)
+    assert waiting_count(book) == 3
+
+
+def test_repeat_initial_from_same_token_is_ignored_and_untouched():
+    # One token is never counted more than once at a stop and route (01, TC150's
+    # invariant). A repeat does not add, and does not refresh the clock or
+    # overwrite the destination.
+    first = add_initial_signal(new_signal_book("kdoj", "E"), "tok-a", T0, destination="cluster_t02")
+    again = add_initial_signal(first, "tok-a", T0 + timedelta(minutes=10), destination="cluster_t08")
+    assert waiting_count(again) == 1
+    assert again.records["tok-a"] == first.records["tok-a"]
+    assert again.records["tok-a"].received_at == T0
+    assert again.records["tok-a"].destination == "cluster_t02"
+
+
+def test_empty_token_raises():
+    with pytest.raises(ValueError):
+        add_initial_signal(new_signal_book("kdoj", "E"), "", T0)
+
+
+def test_operations_are_pure_and_the_book_is_read_only():
+    book = _book_with("kdoj", "E", ["a"], T0)
+    before = dict(book.records)
+    later = add_initial_signal(book, "b", T0)
+    expired = expire_signals(later, T0 + timedelta(hours=2))
+    assert dict(book.records) == before          # input untouched by add...
+    assert waiting_count(later) == 2             # ...and by expire
+    assert waiting_count(expired) == 0
+    with pytest.raises(TypeError):
+        book.records["z"] = SignalRecord("z", T0)  # type: ignore[index]
+    with pytest.raises(FrozenInstanceError):
+        book.stop_id = "klg"  # type: ignore[misc]
+
+
+@pytest.mark.parametrize(
+    "age, kept",
+    [
+        (timedelta(0), True),
+        (timedelta(minutes=29, seconds=59), True),   # a tick younger than expiry: kept
+        (timedelta(minutes=30), False),               # exactly expiry old: dropped
+        (timedelta(minutes=31), False),
+        (timedelta(hours=3), False),
+    ],
+)
+def test_expiry_boundary_at_default_placeholder(age, kept):
+    assert SIGNAL_EXPIRY == timedelta(minutes=30)     # the placeholder in config/thresholds.py
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "a", T0)
+    assert ("a" in expire_signals(book, T0 + age).records) is kept
+
+
+def test_expiry_keeps_fresh_and_drops_stale_in_one_book():
+    book = new_signal_book("kdoj", "E")
+    book = add_initial_signal(book, "old", T0)
+    book = add_initial_signal(book, "mid", T0 + timedelta(minutes=10))
+    book = add_initial_signal(book, "new", T0 + timedelta(minutes=29))
+    now = T0 + timedelta(minutes=35)
+    after = expire_signals(book, now)
+    assert set(after.records) == {"mid", "new"}
+    assert after.records["mid"] == book.records["mid"]   # survivors are unchanged
+    assert after.stop_id == "kdoj" and after.corridor_id == "E"
+
+
+def test_expiry_honours_a_custom_window():
+    book = add_initial_signal(new_signal_book("kdoj", "E"), "a", T0)
+    assert "a" in expire_signals(book, T0 + timedelta(minutes=45), expiry=timedelta(hours=1)).records
+    assert "a" not in expire_signals(book, T0 + timedelta(minutes=5), expiry=timedelta(minutes=5)).records
+
+
+def test_expiry_applies_to_every_status():
+    # A stale record is stale whatever ORBIT last believed about the person.
+    book = _book_with("kdoj", "E", ["w", "b", "l"], T0)
+    recs = dict(book.records)
+    recs["b"] = replace(recs["b"], status=SignalStatus.ASSUMED_BOARDED)
+    recs["l"] = replace(recs["l"], status=SignalStatus.LEFT_BEHIND, left_by_departure="E1-0730")
+    book = SignalBook("kdoj", "E", recs)
+    assert dict(expire_signals(book, T0 + timedelta(minutes=30)).records) == {}
+
+
+def test_waiting_count_counts_only_waiting_status():
+    book = _book_with("kdoj", "E", ["w1", "w2", "b", "l"], T0)
+    recs = dict(book.records)
+    recs["b"] = replace(recs["b"], status=SignalStatus.ASSUMED_BOARDED)
+    recs["l"] = replace(recs["l"], status=SignalStatus.LEFT_BEHIND, left_by_departure="E1-0730")
+    assert waiting_count(SignalBook("kdoj", "E", recs)) == 2
+
+
+def test_waiting_app_from_book_expires_then_counts_without_changing_the_book():
+    book = new_signal_book("kdse", "E")
+    book = add_initial_signal(book, "stale", T0)
+    book = add_initial_signal(book, "fresh", T0 + timedelta(minutes=20))
+    now = T0 + timedelta(minutes=31)
+    assert waiting_app_from_book(book, now) == 1
+    assert set(book.records) == {"stale", "fresh"}     # the caller's book is untouched
+
+
+def test_real_count_feeds_stop_state():
+    # R1: the per-tick state carries the real waiting count. 7 tokens at KDSE -> 7, MEDIUM.
+    book = _book_with("kdse", "E", [f"t{i}" for i in range(7)], T0)
+    state = build_stop_state("kdse", "E", waiting_app=waiting_app_from_book(book, T0 + timedelta(minutes=1)))
+    assert state.waiting_app == 7
+    assert state.level is DemandLevel.MEDIUM
+
+
+def test_tc107_stop_agent_half_through_a_real_count_at_cp():
+    # TC107 (Stop-Agent half): three students at CP who picked Bus E are counted
+    # for Bus E at CP, through the real signal book; no `expected` is produced there.
+    book = _book_with("cp", "E", ["a", "b", "c"], T0)
+    state = build_stop_state("cp", "E", waiting_app=waiting_app_from_book(book, T0), expected=12)
+    assert state.waiting_app == 3
+    assert state.level is DemandLevel.LOW
+    assert state.expected is None
