@@ -1,241 +1,220 @@
-"""Unit tests for the Stop Agent. Block 1.
+"""Unit tests for the Stop Agent. Block 1 (design locked 11 Nov 2026).
 
-Task 1 (TC07): demand classification — every band and fencepost.
-Task 2: per-tick broadcast decision — per-level behaviour, Rule 3 change gate,
-Rule 6 keepalive, and the priority flag.
+Task 1  — demand level: every band and fencepost (TC102), negative raises.
+Task 3R — CP / Jalan Amal: no `expected` there, everything else unchanged (TC108);
+          n24 / ktc are routing nodes, not special here.
+Task 2R — StopState is built at every level; nothing gates it (TC101).
 
 Run from backend/ with flat imports (from agents.stop_agent ...).
 """
 
-from datetime import datetime, timedelta
+from dataclasses import FrozenInstanceError
+from datetime import datetime
 
 import pytest
 
 from agents.stop_agent import (
-    BroadcastDecision,
+    NO_EXPECTED_STOP_IDS,
     DemandLevel,
+    StopState,
+    build_stop_state,
     classify_demand,
-    decide_broadcast,
-    evaluate_broadcast,
-    is_interchange_stop,
+    produces_expected,
 )
 
 # ---------------------------------------------------------------------------
-# Task 1 — classification (TC07)
+# Task 1 — demand level (TC102)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "count, expected",
+    "count, expected_level",
     [
-        (0, DemandLevel.LOW),        # bottom of range
-        (3, DemandLevel.LOW),        # TC07: queue = 3 -> LOW
-        (4, DemandLevel.LOW),        # top edge of LOW (< 5)
-        (5, DemandLevel.MEDIUM),     # bottom edge of MEDIUM
-        (10, DemandLevel.MEDIUM),    # mid MEDIUM
-        (15, DemandLevel.MEDIUM),    # top edge of MEDIUM (<= 15)
-        (16, DemandLevel.HIGH),      # bottom edge of HIGH
-        (25, DemandLevel.HIGH),      # mid HIGH
-        (30, DemandLevel.HIGH),      # top edge of HIGH (<= 30)
-        (31, DemandLevel.CRITICAL),  # bottom edge of CRITICAL (> 30)
-        (100, DemandLevel.CRITICAL), # well into CRITICAL
+        (0, DemandLevel.LOW),         # bottom of range
+        (3, DemandLevel.LOW),         # TC101's count
+        (4, DemandLevel.LOW),         # top edge of LOW (< 5)
+        (5, DemandLevel.MEDIUM),      # TC102: bottom edge of MEDIUM
+        (10, DemandLevel.MEDIUM),     # mid MEDIUM
+        (15, DemandLevel.MEDIUM),     # TC102: top edge of MEDIUM (<= 15)
+        (16, DemandLevel.HIGH),       # TC102: bottom edge of HIGH
+        (25, DemandLevel.HIGH),       # mid HIGH
+        (30, DemandLevel.HIGH),       # TC102: top edge of HIGH (<= 30)
+        (31, DemandLevel.CRITICAL),   # TC102: bottom edge of CRITICAL (> 30)
+        (100, DemandLevel.CRITICAL),  # well into CRITICAL
     ],
 )
-def test_classify_demand_bands_and_boundaries(count, expected):
-    assert classify_demand(count) == expected
-
-
-def test_tc07_queue_three_is_low():
-    # TC07 (01_AGENT_DESIGN.md black-box test case): queue_count = 3 -> LOW
-    assert classify_demand(3) is DemandLevel.LOW
+def test_classify_demand_bands_and_boundaries(count, expected_level):
+    assert classify_demand(count) == expected_level
 
 
 def test_demand_level_is_ordered():
-    # LOW < MEDIUM < HIGH < CRITICAL — supports the monotonicity property test later.
+    # LOW < MEDIUM < HIGH < CRITICAL — the Testing Session's monotonicity property needs this.
     assert DemandLevel.LOW < DemandLevel.MEDIUM < DemandLevel.HIGH < DemandLevel.CRITICAL
 
 
 def test_negative_queue_count_raises():
-    # A queue count cannot be negative; classify_demand surfaces it rather than bucketing.
+    # TC102: a negative count raises rather than being bucketed as LOW.
     with pytest.raises(ValueError):
         classify_demand(-1)
 
 
 # ---------------------------------------------------------------------------
-# Task 2 — broadcast decision
+# Task 3R — CP and Jalan Amal: no `expected`, nothing else special (TC108)
 # ---------------------------------------------------------------------------
 
-T0 = datetime(2026, 3, 23, 7, 0, 0)          # arbitrary fixed sim time
-RECENT = T0 - timedelta(seconds=5)           # last broadcast 5s ago (within keepalive)
-STALE = T0 - timedelta(seconds=31)           # last broadcast 31s ago (keepalive elapsed)
+
+def test_cp_and_jalan_amal_produce_no_expected():
+    assert NO_EXPECTED_STOP_IDS == frozenset({"cp", "jalan_amal"})
+    assert produces_expected("cp") is False
+    assert produces_expected("jalan_amal") is False
 
 
-def test_low_never_broadcasts_even_on_change():
-    # LOW is an absolute "never" — even a HIGH -> LOW change must not broadcast.
-    d = decide_broadcast(DemandLevel.LOW, DemandLevel.HIGH, T0, RECENT)
-    assert d.should_broadcast is False
-    assert d.priority is False
-    assert d.is_keepalive is False
+def test_no_expected_lookup_is_case_insensitive():
+    assert produces_expected("CP") is False
+    assert produces_expected("Jalan_Amal") is False
 
 
-def test_low_from_none_does_not_broadcast():
-    d = decide_broadcast(DemandLevel.LOW, None, T0, None)
-    assert d.should_broadcast is False
+def test_routing_shared_nodes_and_ordinary_stops_do_produce_expected():
+    # Ordinary stops produce `expected`...
+    assert produces_expected("kdoj") is True
+    assert produces_expected("kdse") is True
+    assert produces_expected("cluster_t08") is True
+    # ...and n24 / ktc are module-02 ROUTING shared nodes, not demand-special stops.
+    # That routing list must never be reused for anything about counting people.
+    assert produces_expected("n24") is True
+    assert produces_expected("ktc") is True
 
 
-def test_medium_broadcasts_on_change():
-    # LOW -> MEDIUM is a change: MEDIUM broadcasts on change.
-    d = decide_broadcast(DemandLevel.MEDIUM, DemandLevel.LOW, T0, None)
-    assert d.should_broadcast is True
-    assert d.priority is False
-    assert d.is_keepalive is False
+@pytest.mark.parametrize("stop_id", ["cp", "jalan_amal", "CP"])
+def test_tc108_expected_is_none_at_cp_and_jalan_amal_even_if_supplied(stop_id):
+    # TC108: whatever the schedule model offers, the state carries no `expected` here.
+    state = build_stop_state(stop_id, "E", waiting_app=4, expected=22)
+    assert state.expected is None
 
 
-def test_medium_unchanged_does_not_broadcast():
-    # Sustained MEDIUM with no level change: no broadcast.
-    d = decide_broadcast(DemandLevel.MEDIUM, DemandLevel.MEDIUM, T0, RECENT)
-    assert d.should_broadcast is False
+def test_tc108_other_stops_keep_expected():
+    assert build_stop_state("kdoj", "E", waiting_app=4, expected=22).expected == 22
 
 
-def test_medium_first_observation_counts_as_change():
-    # previous_level None is treated as a change -> first MEDIUM broadcasts.
-    d = decide_broadcast(DemandLevel.MEDIUM, None, T0, None)
-    assert d.should_broadcast is True
+@pytest.mark.parametrize("count", [0, 3, 9, 20, 45])
+def test_cp_signals_count_like_anywhere_else(count):
+    # S6 (the half of TC107 that lives in the Stop Agent): a student at CP who picks
+    # Bus E is counted for Bus E at CP, at every level. Nothing is silenced.
+    state = build_stop_state("cp", "E", waiting_app=count)
+    assert state.waiting_app == count
+    assert state.level == classify_demand(count)
 
 
-def test_medium_no_keepalive_even_when_stale():
-    # Rule 6 keepalive applies only to >= HIGH; a stale MEDIUM still does not fire.
-    d = decide_broadcast(DemandLevel.MEDIUM, DemandLevel.MEDIUM, T0, STALE)
-    assert d.should_broadcast is False
-    assert d.is_keepalive is False
+# ---------------------------------------------------------------------------
+# Task 2R / Task 9 — the state is built on every tick, at every level (TC101)
+# ---------------------------------------------------------------------------
+
+T0 = datetime(2026, 3, 23, 7, 0, 0)  # arbitrary fixed sim time
 
 
-def test_high_broadcasts_every_tick_even_unchanged():
-    d = decide_broadcast(DemandLevel.HIGH, DemandLevel.HIGH, T0, RECENT)
-    assert d.should_broadcast is True
-    assert d.priority is False
-    assert d.is_keepalive is False  # 5s since last -> keepalive not yet due
+def test_tc101_low_stop_still_produces_a_state():
+    # TC101: 3 people waiting -> level LOW, and the state is still produced.
+    state = build_stop_state("kdoj", "E", waiting_app=3)
+    assert isinstance(state, StopState)
+    assert state.level is DemandLevel.LOW
+    assert state.waiting_app == 3
 
 
-def test_critical_broadcasts_every_tick_with_priority():
-    d = decide_broadcast(DemandLevel.CRITICAL, DemandLevel.CRITICAL, T0, RECENT)
-    assert d.should_broadcast is True
-    assert d.priority is True
+@pytest.mark.parametrize("count", [0, 4, 5, 15, 16, 30, 31, 100])
+def test_state_is_produced_at_every_level(count):
+    # No level, high or low, changes whether a state exists. Levels trigger nothing.
+    state = build_stop_state("kdoj", "E", waiting_app=count)
+    assert isinstance(state, StopState)
+    assert state.level == classify_demand(count)
 
 
-def test_change_into_high_broadcasts():
-    d = decide_broadcast(DemandLevel.HIGH, DemandLevel.LOW, T0, None)
-    assert d.should_broadcast is True
-    assert d.priority is False
+def test_level_comes_from_classifier_on_waiting_app_by_default():
+    assert build_stop_state("kdoj", "E", waiting_app=20).level is DemandLevel.HIGH
+    assert build_stop_state("kdoj", "E", waiting_app=0).level is DemandLevel.LOW
 
 
-def test_change_into_critical_broadcasts_with_priority():
-    d = decide_broadcast(DemandLevel.CRITICAL, DemandLevel.LOW, T0, None)
-    assert d.should_broadcast is True
-    assert d.priority is True
+def test_level_uses_estimated_total_once_app_share_is_known():
+    # 01: the level uses the best count available — estimated_total once known.
+    state = build_stop_state("kdoj", "E", waiting_app=3, estimated_total=20, app_share=0.15)
+    assert state.level is DemandLevel.HIGH          # from 20, not from 3
+    assert state.waiting_app == 3                    # the raw app count is still carried
+    assert state.estimated_total == 20
+    assert state.app_share == 0.15
 
 
-def test_keepalive_fires_for_sustained_high_without_change():
-    # Sustained HIGH, no change, >30s since last broadcast: keepalive trigger is due.
-    # (should_broadcast is already True via every-tick; is_keepalive marks Rule 6 fired.)
-    d = decide_broadcast(DemandLevel.HIGH, DemandLevel.HIGH, T0, STALE)
-    assert d.should_broadcast is True
-    assert d.is_keepalive is True
+def test_defaults_for_fields_later_tasks_feed():
+    state = build_stop_state("klg", "E")
+    assert state.stop_id == "klg" and state.corridor_id == "E"
+    assert state.waiting_app == 0
+    assert state.left_behind == 0
+    assert dict(state.left_behind_by_departure) == {}
+    assert state.expected is None
+    assert state.estimated_total is None
+    assert state.app_share is None
+    assert state.flagged is False
+    assert state.last_bus_visit_time is None
+    assert state.level is DemandLevel.LOW
 
 
-def test_keepalive_due_for_sustained_critical():
-    d = decide_broadcast(DemandLevel.CRITICAL, DemandLevel.CRITICAL, T0, STALE)
-    assert d.should_broadcast is True
-    assert d.priority is True
-    assert d.is_keepalive is True
-
-
-def test_priority_only_set_on_critical_not_high():
-    assert decide_broadcast(DemandLevel.HIGH, DemandLevel.HIGH, T0, RECENT).priority is False
-    assert decide_broadcast(DemandLevel.CRITICAL, DemandLevel.CRITICAL, T0, RECENT).priority is True
-
-
-def test_decision_consumes_levels_from_classifier():
-    # Integration: decide_broadcast takes levels (from classify_demand), not raw counts.
-    level = classify_demand(20)  # -> HIGH
-    d = decide_broadcast(level, classify_demand(3), T0, RECENT)  # prev LOW
-    assert level is DemandLevel.HIGH
-    assert d.should_broadcast is True
-
-
-def test_returns_broadcast_decision_type():
-    assert isinstance(
-        decide_broadcast(DemandLevel.LOW, None, T0, None), BroadcastDecision
+def test_left_behind_total_is_sum_of_by_departure():
+    state = build_stop_state(
+        "kdse", "E", waiting_app=7, left_behind_by_departure={"E1-0730": 4, "E3-0740": 3}
     )
+    assert state.left_behind == 7
+    assert dict(state.left_behind_by_departure) == {"E1-0730": 4, "E3-0740": 3}
 
 
-# ---------------------------------------------------------------------------
-# Task 3 — interchange suppression (is_interchange guard)
-# ---------------------------------------------------------------------------
+def test_by_departure_map_is_read_only_and_copied():
+    source = {"E1-0730": 2}
+    state = build_stop_state("kdse", "E", left_behind_by_departure=source)
+    source["E1-0730"] = 99                                  # mutating the input...
+    assert state.left_behind_by_departure["E1-0730"] == 2   # ...doesn't touch the state
+    with pytest.raises(TypeError):
+        state.left_behind_by_departure["E1-0730"] = 5       # and the view can't be written
 
 
-def test_cp_and_jalan_amal_are_interchange():
-    # CP and Jalan Amal are the dispatch-suppression interchanges (01 Behaviour Rule 1).
-    assert is_interchange_stop("cp") is True
-    assert is_interchange_stop("jalan_amal") is True
+def test_flag_and_last_visit_are_carried_through():
+    state = build_stop_state("kdoj", "E", waiting_app=40, expected=5, flagged=True,
+                             last_bus_visit_time=T0)
+    assert state.flagged is True          # flagged, and the count is kept (40), never dropped
+    assert state.waiting_app == 40
+    assert state.last_bus_visit_time == T0
 
 
-def test_interchange_lookup_is_case_insensitive():
-    assert is_interchange_stop("CP") is True
-    assert is_interchange_stop("Jalan_Amal") is True
-
-
-def test_non_interchange_and_graph_shared_nodes_are_not_suppressed():
-    # Origin/cluster stops dispatch normally...
-    assert is_interchange_stop("kdoj") is False
-    assert is_interchange_stop("kdse") is False
-    assert is_interchange_stop("cluster_t08") is False
-    # ...and n24/ktc are module-02 graph shared nodes, NOT dispatch-suppressed stops.
-    assert is_interchange_stop("n24") is False
-    assert is_interchange_stop("ktc") is False
-
-
-@pytest.mark.parametrize(
-    "level",
-    [DemandLevel.LOW, DemandLevel.MEDIUM, DemandLevel.HIGH, DemandLevel.CRITICAL],
-)
-def test_interchange_never_broadcasts_at_any_level(level):
-    # A changed level and a recent broadcast — conditions under which a normal stop
-    # WOULD broadcast at MEDIUM+; the interchange guard must suppress all of them.
-    d = evaluate_broadcast(True, level, DemandLevel.LOW, T0, RECENT)
-    assert d.should_broadcast is False
-    assert d.priority is False
-    assert d.is_keepalive is False
-
-
-def test_interchange_slammed_critical_stays_silent():
-    # The important case: a CRITICAL queue at CP still broadcasts nothing.
-    d = evaluate_broadcast(True, DemandLevel.CRITICAL, DemandLevel.CRITICAL, T0, RECENT)
-    assert d.should_broadcast is False
-    assert d.priority is False
-
-
-def test_interchange_keepalive_does_not_fire():
-    # Sustained HIGH/CRITICAL with >30s elapsed would arm the keepalive on a normal
-    # stop; an interchange stop emits nothing, not even the heartbeat.
-    assert evaluate_broadcast(True, DemandLevel.HIGH, DemandLevel.HIGH, T0, STALE).should_broadcast is False
-    assert evaluate_broadcast(True, DemandLevel.HIGH, DemandLevel.HIGH, T0, STALE).is_keepalive is False
-    assert evaluate_broadcast(True, DemandLevel.CRITICAL, DemandLevel.CRITICAL, T0, STALE).should_broadcast is False
+def test_state_is_frozen():
+    state = build_stop_state("kdoj", "E", waiting_app=1)
+    with pytest.raises(FrozenInstanceError):
+        state.waiting_app = 2  # type: ignore[misc]
 
 
 @pytest.mark.parametrize(
-    "level, prev, last",
+    "kwargs",
     [
-        (DemandLevel.LOW, DemandLevel.HIGH, RECENT),
-        (DemandLevel.MEDIUM, DemandLevel.LOW, None),
-        (DemandLevel.MEDIUM, DemandLevel.MEDIUM, RECENT),
-        (DemandLevel.HIGH, DemandLevel.HIGH, RECENT),
-        (DemandLevel.HIGH, DemandLevel.HIGH, STALE),
-        (DemandLevel.CRITICAL, DemandLevel.CRITICAL, RECENT),
+        {"waiting_app": -1},
+        {"estimated_total": -1},
+        {"left_behind_by_departure": {"E1-0730": -1}},
     ],
 )
-def test_non_interchange_unchanged_from_task2(level, prev, last):
-    # is_interchange=False must reproduce decide_broadcast exactly (Task 2 preserved).
-    assert evaluate_broadcast(False, level, prev, T0, last) == decide_broadcast(
-        level, prev, T0, last
-    )
+def test_negative_counts_raise(kwargs):
+    with pytest.raises(ValueError):
+        build_stop_state("kdoj", "E", **kwargs)
+
+
+def test_to_dict_matches_message_shape():
+    state = build_stop_state("kdoj", "E", waiting_app=9, expected=22,
+                             left_behind_by_departure={"E1-0730": 1}, last_bus_visit_time=T0)
+    d = state.to_dict()
+    assert d == {
+        "stop_id": "kdoj",
+        "corridor_id": "E",
+        "waiting_app": 9,
+        "left_behind": 1,
+        "left_behind_by_departure": {"E1-0730": 1},
+        "expected": 22,
+        "estimated_total": None,
+        "app_share": None,
+        "level": "MEDIUM",                      # serialised by name, per 03's shape
+        "flagged": False,
+        "last_bus_visit_time": "2026-03-23T07:00:00",
+    }
+    assert type(d["left_behind_by_departure"]) is dict   # a plain dict, not the read-only view
