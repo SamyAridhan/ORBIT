@@ -8,6 +8,9 @@ Task 4  — waiting count from app signals: one record per token, expiry, feeds
           waiting_app (R1; TC107's Stop-Agent half through a real count).
 Task 5  — signal types, the lost-track rule, two times on a record (TC103,
           TC151, TC152) and the TC150 state machine (Hypothesis).
+Task 6  — after the bus leaves: the snapshot, who is assumed boarded, the attach
+          rule, the live map vs the history (TC110, TC142, TC143, TC153, TC154),
+          over faked DepartureFacts. The state machine now has departures in it.
 
 Run from backend/ with flat imports (from agents.stop_agent ...).
 """
@@ -36,9 +39,14 @@ from agents.stop_agent import (
     expire_signals,
     new_signal_book,
     produces_expected,
+    left_behind_by_departure,
+    prune_departures,
+    record_departure,
+    state_from_book,
     waiting_app_from_book,
     waiting_count,
 )
+from contracts.departure import DepartureFacts
 from config.thresholds import SIGNAL_EXPIRY
 
 # ---------------------------------------------------------------------------
@@ -256,7 +264,7 @@ def _book_with(stop_id, corridor_id, tokens, at):
 def _with_status(book, token, status, **changes):
     recs = dict(book.records)
     recs[token] = replace(recs[token], status=status, **changes)
-    return SignalBook(book.stop_id, book.corridor_id, recs)
+    return replace(book, records=recs)
 
 
 def test_new_book_is_empty_and_counts_zero():
@@ -498,8 +506,337 @@ def test_update_with_a_destination_replaces_the_stored_one():
 
 
 # ---------------------------------------------------------------------------
-# TC150 — one token is never counted more than once at a stop and route
-# (Hypothesis state machine over any mix of signals, expiry and Task 6's removal)
+# Task 6 — after the bus leaves (pure functions over faked DepartureFacts)
+# ---------------------------------------------------------------------------
+
+
+def at(hour, minute):
+    return datetime(2026, 3, 23, hour, minute)
+
+
+def dep(departure_id, when, full, boarded=None, stop_id="kdse", corridor_id="E"):
+    """A faked DepartureFacts, to the contract in 01."""
+    return DepartureFacts(departure_id=departure_id, bus_id=departure_id.split("-")[0],
+                          corridor_id=corridor_id, stop_id=stop_id, departed_at=when,
+                          left_full=full, boarded=boarded)
+
+
+def _arrivals(book, tokens_and_times):
+    for token, when in tokens_and_times:
+        book = add_initial_signal(book, token, when)
+    return book
+
+
+def _statuses(book):
+    return {t: r.status for t, r in book.records.items()}
+
+
+W, B, L = SignalStatus.WAITING, SignalStatus.ASSUMED_BOARDED, SignalStatus.LEFT_BEHIND
+
+
+# --- the departure event: snapshot, then who is assumed boarded ---
+
+
+def test_departure_for_another_stop_or_route_is_rejected():
+    book = new_signal_book("kdse", "E")
+    with pytest.raises(ValueError):
+        record_departure(book, dep("E1-0730", at(7, 30), True, stop_id="klg"))
+    with pytest.raises(ValueError):
+        record_departure(book, dep("B1-0730", at(7, 30), True, corridor_id="B"))
+
+
+def test_no_door_counter_everyone_already_waiting_is_assumed_boarded():
+    # "No answer = boarded" (locked). boarded is None -> all of them.
+    book = _arrivals(new_signal_book("kdse", "E"), [("a", at(7, 20)), ("b", at(7, 25))])
+    after = record_departure(book, dep("E1-0730", at(7, 30), full=False))
+    assert _statuses(after) == {"a": B, "b": B}
+    assert waiting_count(after) == 0
+
+
+def test_someone_who_arrives_after_the_bus_has_gone_is_untouched():
+    book = _arrivals(new_signal_book("kdse", "E"), [("early", at(7, 20)), ("late", at(7, 35))])
+    after = record_departure(book, dep("E1-0730", at(7, 30), full=True))
+    assert _statuses(after) == {"early": B, "late": W}
+    assert after.departures["E1-0730"].waiting_at_departure == 1   # "late" wasn't there yet
+
+
+def test_snapshot_is_taken_before_anyone_is_marked():
+    book = _arrivals(new_signal_book("kdse", "E"), [(f"t{i}", at(7, 20)) for i in range(10)])
+    after = record_departure(book, dep("E1-0730", at(7, 30), full=True, boarded=3))
+    snap = after.departures["E1-0730"]
+    assert snap.waiting_at_departure == 10        # the fixed number for Way 1
+    assert waiting_count(after) == 7              # the live count has already moved on
+    assert snap.flagged_at_departure is False     # default until Task 7 feeds it
+    assert snap.still_waiting_taps == 0
+    assert snap.facts.boarded == 3 and snap.facts.left_full is True
+
+
+def test_flag_at_departure_is_carried_into_the_snapshot():
+    book = add_initial_signal(new_signal_book("kdse", "E"), "a", at(7, 20))
+    after = record_departure(book, dep("E1-0730", at(7, 30), True), flagged=True)
+    assert after.departures["E1-0730"].flagged_at_departure is True
+
+
+def test_door_counter_caps_who_is_assumed_boarded_longest_waiting_first():
+    # 5 app users waiting; the counter saw 2 board -> only the 2 longest-waiting are
+    # removed, never more than actually boarded. The other 3 stay in the count.
+    book = _arrivals(new_signal_book("kdse", "E"),
+                     [("c", at(7, 22)), ("a", at(7, 10)), ("e", at(7, 28)),
+                      ("b", at(7, 15)), ("d", at(7, 25))])
+    after = record_departure(book, dep("E1-0730", at(7, 30), full=True, boarded=2))
+    assert _statuses(after) == {"a": B, "b": B, "c": W, "d": W, "e": W}
+    assert waiting_count(after) == 3
+
+
+def test_ties_on_start_time_are_broken_by_token_so_it_is_deterministic():
+    book = _arrivals(new_signal_book("kdse", "E"), [("z", at(7, 20)), ("m", at(7, 20)), ("a", at(7, 20))])
+    after = record_departure(book, dep("E1-0730", at(7, 30), full=True, boarded=1))
+    assert _statuses(after) == {"a": B, "m": W, "z": W}
+
+
+@pytest.mark.parametrize("boarded, still_waiting", [(0, 3), (3, 0), (9, 0)])
+def test_door_counter_edges(boarded, still_waiting):
+    # 0 boarded -> nobody removed; more boarded than app users (riders without the
+    # app) -> everyone removed, never an error.
+    book = _arrivals(new_signal_book("kdse", "E"), [("a", at(7, 10)), ("b", at(7, 15)), ("c", at(7, 20))])
+    after = record_departure(book, dep("E1-0730", at(7, 30), full=True, boarded=boarded))
+    assert waiting_count(after) == still_waiting
+
+
+def test_a_repeated_departure_message_changes_nothing():
+    book = _arrivals(new_signal_book("kdse", "E"), [("a", at(7, 10)), ("b", at(7, 15))])
+    once = record_departure(book, dep("E1-0730", at(7, 30), full=True, boarded=1))
+    twice = record_departure(once, dep("E1-0730", at(7, 30), full=True, boarded=1))
+    assert twice is once
+    assert waiting_count(twice) == 1
+
+
+def test_departure_is_pure_and_remembers_the_last_visit():
+    book = add_initial_signal(new_signal_book("kdse", "E"), "a", at(7, 20))
+    assert book.last_departure_at is None
+    after = record_departure(book, dep("E1-0730", at(7, 30), True))
+    assert _statuses(book) == {"a": W} and dict(book.departures) == {}     # input untouched
+    assert after.last_departure_at == at(7, 30)
+    later = record_departure(after, dep("E3-0740", at(7, 40), False))
+    late_msg = record_departure(later, dep("E9-0725", at(7, 25), False))    # an old message arriving late
+    assert later.last_departure_at == at(7, 40) and late_msg.last_departure_at == at(7, 40)
+    with pytest.raises(TypeError):
+        after.departures["x"] = after.departures["E1-0730"]  # type: ignore[index]
+
+
+# --- the attach rule ---
+
+
+def test_tc110_one_taps_still_waiting_one_does_not_answer():
+    # TC110: the bus passes; one student taps "still waiting", one doesn't answer.
+    book = _arrivals(new_signal_book("kdse", "E"), [("taps", at(7, 20)), ("silent", at(7, 21))])
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True))
+    book = apply_signal(book, "taps", SignalType.STILL_WAITING, at(7, 31))
+    assert book.records["taps"].status is L
+    assert book.records["taps"].left_by_departure == "E1-0730"
+    assert book.records["silent"].status is B                 # removed as boarded
+    assert waiting_count(book) == 1                           # the tapper stays in the count
+    assert left_behind_by_departure(book) == {"E1-0730": 1}
+    assert book.departures["E1-0730"].still_waiting_taps == 1
+
+
+def test_tc142_a_late_tap_puts_a_removed_person_back_against_that_departure():
+    # TC142: signals; the bus leaves full; no answer, so removed as boarded; 5 minutes
+    # later taps "still waiting" -> back as one person, recorded against that departure.
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True))
+    assert waiting_count(book) == 0
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 35))
+    rec = book.records["ali"]
+    assert len(book.records) == 1 and waiting_count(book) == 1
+    assert rec.status is L and rec.left_by_departure == "E1-0730"
+    assert rec.started_waiting_at == at(7, 25)                # the start never moved
+
+
+def test_tc143_a_tap_when_no_bus_has_left_full_confirms_nothing():
+    # TC143: the bus had room. The student simply missed it: stays in the waiting
+    # count, is not left behind, and the departure's history stays empty.
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=False))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 32))
+    assert book.records["ali"].status is W
+    assert book.records["ali"].left_by_departure is None
+    assert waiting_count(book) == 1
+    assert left_behind_by_departure(book) == {}
+    assert book.departures["E1-0730"].still_waiting_taps == 0
+
+
+def test_a_tap_with_no_departure_at_all_confirms_nothing():
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 27))
+    assert book.records["ali"].status is W and left_behind_by_departure(book) == {}
+
+
+def test_tc153_record_half_late_tap_goes_to_the_full_bus_not_the_later_one_with_room():
+    # TC153 (the record; "no spare" is the Coordinator's): 7:30 leaves full, 7:40
+    # leaves with room, a student waiting since 7:25 taps at 7:42 -> left behind by the 7:30.
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True))
+    book = record_departure(book, dep("E3-0740", at(7, 40), full=False))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 42))
+    assert book.records["ali"].status is L
+    assert book.records["ali"].left_by_departure == "E1-0730"
+    assert book.departures["E1-0730"].still_waiting_taps == 1
+    assert book.departures["E3-0740"].still_waiting_taps == 0    # a bus with room left nobody
+
+
+def test_tc154_a_bus_cannot_have_left_someone_who_was_not_there_yet():
+    # TC154: the 7:30 leaves full; a student who started waiting at 7:35 taps.
+    book = record_departure(new_signal_book("kdse", "E"), dep("E1-0730", at(7, 30), full=True))
+    book = add_initial_signal(book, "late", at(7, 35))
+    book = apply_signal(book, "late", SignalType.STILL_WAITING, at(7, 36))
+    assert book.records["late"].status is W
+    assert book.records["late"].left_by_departure is None
+    assert book.departures["E1-0730"].still_waiting_taps == 0
+
+
+def test_started_waiting_at_the_very_moment_the_bus_left_counts_as_already_there():
+    book = add_initial_signal(new_signal_book("kdse", "E"), "edge", at(7, 30))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True))
+    assert book.departures["E1-0730"].waiting_at_departure == 1
+    book = apply_signal(book, "edge", SignalType.STILL_WAITING, at(7, 31))
+    assert book.records["edge"].left_by_departure == "E1-0730"
+
+
+def test_most_recent_full_departure_wins():
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 15))
+    book = record_departure(book, dep("E1-0720", at(7, 20), full=True, boarded=0))
+    book = record_departure(book, dep("E3-0730", at(7, 30), full=True, boarded=0))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 31))
+    assert book.records["ali"].left_by_departure == "E3-0730"
+
+
+def test_left_by_two_buses_live_map_moves_history_keeps_both():
+    # Ali is left by the 7:30 and taps. The 7:40 is full too, and he taps again.
+    # Live state: he is one person, under the last bus that left him. History: he is
+    # in both departures' tap counts, which only grow.
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 31))
+    assert left_behind_by_departure(book) == {"E1-0730": 1}
+
+    book = record_departure(book, dep("E3-0740", at(7, 40), full=True))     # no door counter
+    assert book.records["ali"].status is B                                   # assumed boarded...
+    assert left_behind_by_departure(book) == {}
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 41))   # ...until he says otherwise
+
+    assert left_behind_by_departure(book) == {"E3-0740": 1}                 # moved, not doubled
+    assert sum(left_behind_by_departure(book).values()) == 1 == waiting_count(book)
+    assert book.departures["E1-0730"].still_waiting_taps == 1               # history kept
+    assert book.departures["E3-0740"].still_waiting_taps == 1
+
+
+def test_one_person_tapping_twice_against_one_departure_is_one_in_the_history():
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 31))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 33))
+    # ...and through the restore path: a later bus with room, no answer, another tap.
+    book = record_departure(book, dep("E3-0740", at(7, 40), full=False))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 42))
+    assert book.records["ali"].left_by_departure == "E1-0730"
+    assert book.departures["E1-0730"].still_waiting_taps == 1
+
+
+def test_door_counter_leaves_a_left_behind_person_attached_until_they_board():
+    # Left by the 7:30. The 7:40 has room but the counter saw 0 board here: he is
+    # still waiting and still "left by the 7:30" — no tap needed, nothing lost.
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True, boarded=0))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 31))
+    book = record_departure(book, dep("E3-0740", at(7, 40), full=False, boarded=0))
+    assert book.records["ali"].status is L and book.records["ali"].left_by_departure == "E1-0730"
+    # When a bus does take him, the live attachment goes; the history stays.
+    book = record_departure(book, dep("E5-0750", at(7, 50), full=False, boarded=1))
+    assert book.records["ali"].status is B and book.records["ali"].left_by_departure is None
+    assert left_behind_by_departure(book) == {}
+    assert book.departures["E1-0730"].still_waiting_taps == 1
+
+
+def test_initial_from_an_assumed_boarded_person_attaches_exactly_like_still_waiting():
+    # 13 Nov ruling: an `initial` on an ASSUMED_BOARDED record restores it "exactly
+    # like a still waiting" — so after a full bus it records the left-behind too.
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True))
+    book = apply_signal(book, "ali", SignalType.INITIAL, at(7, 33))
+    assert book.records["ali"].status is L and book.records["ali"].left_by_departure == "E1-0730"
+
+
+@pytest.mark.parametrize("kind", [SignalType.INITIAL, SignalType.TRANSFER])
+def test_a_first_initial_and_a_transfer_never_attach(kind):
+    book = record_departure(new_signal_book("kdse", "E"), dep("E1-0730", at(7, 30), full=True))
+    book = apply_signal(book, "new", kind, at(7, 30))           # same instant as the full bus
+    assert book.records["new"].status is W
+    assert book.departures["E1-0730"].still_waiting_taps == 0
+
+
+def test_transfer_restores_but_does_not_claim_a_left_behind():
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True))
+    book = apply_signal(book, "ali", SignalType.TRANSFER, at(7, 33))
+    assert book.records["ali"].status is W and waiting_count(book) == 1
+
+
+def test_accepted_limit_a_tap_after_expiry_cannot_reach_back_to_an_earlier_bus():
+    # The record expired; the tap starts a fresh one, so it can only be attached to
+    # buses that leave after the tap. ORBIT does not claim a left-behind it can't support.
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 0))
+    book = record_departure(book, dep("E1-0705", at(7, 5), full=True))
+    book = expire_signals(book, at(7, 40))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 40))
+    assert book.records["ali"].status is W
+    assert book.records["ali"].started_waiting_at == at(7, 40)
+
+
+# --- feeding StopState, and the history bound ---
+
+
+def test_state_from_book_feeds_waiting_left_behind_and_last_visit():
+    book = _arrivals(new_signal_book("kdse", "E"), [(f"t{i}", at(7, 20)) for i in range(10)])
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True, boarded=3))   # t0-t2 board
+    for t in ("t3", "t4", "t5", "t6", "t7"):
+        book = apply_signal(book, t, SignalType.STILL_WAITING, at(7, 31))
+    state = state_from_book(book, at(7, 32), expected=22)
+    assert state.stop_id == "kdse" and state.corridor_id == "E"
+    assert state.waiting_app == 7                      # 5 left behind + 2 who haven't tapped
+    assert dict(state.left_behind_by_departure) == {"E1-0730": 5}
+    assert state.left_behind == 5
+    assert state.last_bus_visit_time == at(7, 30)
+    assert state.expected == 22 and state.level is DemandLevel.MEDIUM
+    assert len(book.records) == 10                     # read-only: the caller's book is untouched
+
+
+def test_state_from_book_before_any_bus_and_at_cp():
+    book = add_initial_signal(new_signal_book("cp", "E"), "a", at(7, 20))
+    state = state_from_book(book, at(7, 21), expected=9)
+    assert state.last_bus_visit_time is None
+    assert dict(state.left_behind_by_departure) == {} and state.left_behind == 0
+    assert state.expected is None                      # Rule 3 still holds through this path
+
+
+def test_prune_departures_boundary_and_keeps_attachments_and_last_visit():
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 59))
+    assert "E1-0730" in prune_departures(book, at(7, 59, ) + timedelta(seconds=59)).departures
+    pruned = prune_departures(book, at(8, 0))                     # exactly 30:00 old: forgotten
+    assert dict(pruned.departures) == {}
+    assert pruned.last_departure_at == at(7, 30)
+    assert pruned.records["ali"].left_by_departure == "E1-0730"   # the person keeps the attachment
+    assert left_behind_by_departure(pruned) == {"E1-0730": 1}
+    assert prune_departures(pruned, at(8, 0)) is pruned
+
+
+# ---------------------------------------------------------------------------
+# TC150 — one token is never counted more than once at a stop and route.
+# Hypothesis state machine over any mix of taps, departures, expiry and pruning.
+# Also answers: can a person end up LEFT_BEHIND by a bus that left before they
+# started waiting, or by a bus that had room?
 # ---------------------------------------------------------------------------
 
 TOKENS = st.sampled_from(["t1", "t2", "t3", "t4", "t5"])
@@ -509,43 +846,53 @@ KINDS = st.sampled_from(list(SignalType))
 class OneTokenOnePerson(RuleBasedStateMachine):
     """Model: per token, ORBIT believes exactly one of {absent, waiting, boarded}.
 
-    The real book must never hold two records for one token, must count a token
-    at most once, must never refresh `started_waiting_at` while a record exists,
-    and must agree with the model about who counts.
+    The real book must agree with the model about who counts, must never hold or
+    count a token twice, must never refresh `started_waiting_at` while a record
+    exists, and every LEFT_BEHIND record must point at a departure that left full
+    at or after that person started waiting. Tap histories only grow.
     """
 
     def __init__(self):
         super().__init__()
         self.book = new_signal_book("kdoj", "E")
         self.now = T0
-        self.model: dict[str, str] = {}       # token -> "waiting" | "boarded"
+        self.model: dict[str, str] = {}             # token -> "waiting" | "boarded"
         self.started: dict[str, datetime] = {}
+        self.facts: dict[str, DepartureFacts] = {}  # every departure ever, pruned or not
+        self.history: dict[str, frozenset] = {}     # departure_id -> tokens seen so far
 
     @rule(token=TOKENS, kind=KINDS)
     def tap(self, token, kind):
         before = self.model.get(token)
         self.book = apply_signal(self.book, token, kind, self.now)
         if before is None:
-            self.model[token] = "waiting"; self.started[token] = self.now
+            self.model[token] = "waiting"
+            self.started[token] = self.now
         elif before == "boarded":
             self.model[token] = "waiting"
-        # before == "waiting": nothing changes in the model
+
+    @rule(full=st.booleans(), boarded=st.one_of(st.none(), st.integers(min_value=0, max_value=6)))
+    def bus_leaves(self, full, boarded):
+        departure_id = f"d{len(self.facts)}"
+        facts = DepartureFacts(departure_id=departure_id, bus_id="E1", corridor_id="E",
+                               stop_id="kdoj", departed_at=self.now, left_full=full, boarded=boarded)
+        self.facts[departure_id] = facts
+        present = sorted((t for t, v in self.model.items() if v == "waiting" and self.started[t] <= self.now),
+                         key=lambda t: (self.started[t], t))
+        for t in (present if boarded is None else present[:boarded]):
+            self.model[t] = "boarded"
+        self.book = record_departure(self.book, facts)
+        assert self.book.departures[departure_id].waiting_at_departure == len(present)
 
     @rule(minutes=st.integers(min_value=1, max_value=20))
     def time_passes(self, minutes):
         self.now += minutes * MIN
-        self.book = expire_signals(self.book, self.now)
+        self.book = prune_departures(expire_signals(self.book, self.now), self.now)
         for t in list(self.model):
             if t not in self.book.records:
-                del self.model[t]; del self.started[t]
+                del self.model[t]
+                del self.started[t]
         assert set(self.model) == set(self.book.records)
-
-    @rule(token=TOKENS)
-    def bus_leaves_and_they_dont_answer(self, token):
-        # Task 6's removal, faked: a known waiting person is assumed boarded.
-        if token in self.book.records and self.book.records[token].status is not SignalStatus.ASSUMED_BOARDED:
-            self.book = _with_status(self.book, token, SignalStatus.ASSUMED_BOARDED)
-            self.model[token] = "boarded"
 
     @invariant()
     def one_record_per_token_and_counted_at_most_once(self):
@@ -559,6 +906,32 @@ class OneTokenOnePerson(RuleBasedStateMachine):
             assert r.started_waiting_at == self.started[t]
             assert r.started_waiting_at <= r.last_heard_at <= self.now
 
+    @invariant()
+    def left_behind_only_by_a_full_bus_that_left_after_they_started(self):
+        for r in self.book.records.values():
+            if r.status is SignalStatus.LEFT_BEHIND:
+                bus = self.facts[r.left_by_departure]
+                assert bus.left_full
+                assert bus.departed_at >= r.started_waiting_at
+            else:
+                assert r.left_by_departure is None
+
+    @invariant()
+    def live_map_is_people_and_nobody_is_in_it_twice(self):
+        live = left_behind_by_departure(self.book)
+        left = sum(1 for r in self.book.records.values() if r.status is SignalStatus.LEFT_BEHIND)
+        assert sum(live.values()) == left <= waiting_count(self.book)
+        state = state_from_book(self.book, self.now)
+        assert state.left_behind == left and state.waiting_app == waiting_count(self.book)
+
+    @invariant()
+    def tap_history_only_grows_and_only_on_full_buses(self):
+        for departure_id, snap in self.book.departures.items():
+            assert self.history.get(departure_id, frozenset()) <= snap.still_waiting_tokens
+            self.history[departure_id] = snap.still_waiting_tokens
+            if snap.still_waiting_tokens:
+                assert snap.facts.left_full
+
 
 TestTC150OneTokenOnePerson = OneTokenOnePerson.TestCase
-TestTC150OneTokenOnePerson.settings = settings(max_examples=200, stateful_step_count=40, deadline=None)
+TestTC150OneTokenOnePerson.settings = settings(max_examples=300, stateful_step_count=50, deadline=None)
