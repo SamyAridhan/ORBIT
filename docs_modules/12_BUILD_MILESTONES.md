@@ -26,7 +26,7 @@
 
 - Active branch: **`claude/funny-knuth-w6dibj`** on `origin` (`github.com/SamyAridhan/ORBIT`).
 - `main` is at **`8b005cc`** (Block 0 merged, 3 Oct 2026).
-- The working branch is ahead of `main`; tip reported as **`1d67a2e`** (13 Nov 2026).
+- The working branch is ahead of `main`; tip reported as **`03c0846`** (13 Nov 2026).
 - Always `git fetch origin` before trusting a local `git log`. Check out the working branch, not `main`, for Block 1+ commits. `main` gets a merge at each block end.
 
 ---
@@ -46,7 +46,7 @@
 |---|---|
 | 0 — Environment and Bus E route map | Complete (on `main`, `8b005cc`) |
 | ★ Whole-system design review | **Done** (17 Oct – 11 Nov 2026). Design locked; modules updated 13 Nov |
-| 1 — Stop Agent | In progress — Tasks 1, 2R + 9, 3R, 4 confirmed; Task 5 built (reported `1d67a2e`, pushed); next Task 6 |
+| 1 — Stop Agent | In progress — Tasks 1, 2R + 9, 3R, 4, 5 confirmed; Task 6 built (reported `03c0846`, pushed); next Task 7 |
 | 2 — Route data: both Bus E paths, timetable file, fleet file, ETA rule | Not started |
 | 3 — Bus Agent: state, sources, driver answers | Not started |
 | 4 — Coordinator I: route totals, confirmed overflow, observation mode | Not started — needs Samy's confirmation first |
@@ -104,9 +104,9 @@ Effect on built code:
 - [x] **Task 2R + Task 9 — The state, built on every tick.** `decide_broadcast`, `BroadcastDecision`, `KEEPALIVE_INTERVAL` deleted. `StopState` (frozen dataclass) + `build_stop_state(...)`, produced at every level; `level = classify_demand(best count)`; `left_behind` is the sum of `left_behind_by_departure`; `to_dict()` gives the message shape. — TC101. *`81b6e75` — confirmed on origin by Coddy's later 13 Nov session.*
 - [x] **Task 3R — CP and Jalan Amal.** `evaluate_broadcast` deleted. `NO_EXPECTED_STOP_IDS` / `produces_expected()`; `expected` is forced to `None` at CP and Jalan Amal where the state is built (coerce, not raise — accepted); n24 / ktc explicitly not in the set; a count at CP counts at every level. — TC108, Stop-Agent half of TC107. *`81b6e75` — confirmed on origin.*
 - [x] **Task 4 — Waiting count from app signals.** One record per token (`SignalRecord`, status `WAITING` / `ASSUMED_BOARDED` / `LEFT_BEHIND`) in a `SignalBook` per stop and route; `expire_signals`, `waiting_count`, `waiting_app_from_book`; placeholder `SIGNAL_EXPIRY = 30 min` in `backend/config/thresholds.py`. — R1. *`419bff0` — confirmed on origin. Corrected in Task 5: `waiting_count` excludes only `ASSUMED_BOARDED` (a left-behind person is still waiting).*
-- [ ] **Task 5 — Signal types and the lost-track rule.** `SignalType` (`initial` / `still_waiting` / `transfer`) through one entry point `apply_signal(...)`. Unknown or expired token, any type → one `WAITING` record. `ASSUMED_BOARDED`, any type → restored as one person, start time kept. Known person + `initial` → nothing changes, no clock touched. Two times on the record: `started_waiting_at` (never refreshed) and `last_heard_at` (drives expiry). One constant, `SIGNAL_EXPIRY`. TC150 as a Hypothesis `RuleBasedStateMachine` (200 examples × 40 steps). — TC103, TC150, TC151, TC152. *Built, reported `1d67a2e`, pushed. Tick once a later session fetch-confirms.*
-- [ ] **Task 6 — After the bus leaves.** A small frozen `DepartureFacts` to the contract in `01`, in a module shared with the Bus Agent and Coordinator (not inside `stop_agent.py`, never in `simulation/`). On a departure: snapshot (`waiting_at_departure`, `flagged_at_departure`); people who were already waiting are marked `ASSUMED_BOARDED` — all of them when `boarded` is `None`, only the `boarded` longest-waiting when the door counter gives a number. "Still waiting" → `LEFT_BEHIND`, attached to the most recent departure that left **full** at or after the student started waiting; none → stays `WAITING`, confirms nothing. The live map groups current people by the last full bus that left them; the per-departure tap count in the snapshot only grows. — TC110, TC142, TC143, TC153 (record half), TC154
-- [ ] **Task 7 — Strange-count flag (rule layer).** Flag when the count is more than 3× `expected`; keep the count; never drop it. Isolation Forest is Block 11, not here. — TC105
+- [x] **Task 5 — Signal types and the lost-track rule.** `SignalType` (`initial` / `still_waiting` / `transfer`) through one entry point `apply_signal(...)`. Unknown or expired token, any type → one `WAITING` record. `ASSUMED_BOARDED`, any type → restored as one person, start time kept. Known person + `initial` → nothing changes. Two times on the record: `started_waiting_at` and `last_heard_at`. One constant, `SIGNAL_EXPIRY`. TC150 as a Hypothesis `RuleBasedStateMachine`. — TC103, TC150, TC151, TC152. *`1d67a2e` — confirmed on origin.*
+- [ ] **Task 6 — After the bus leaves.** Shared contract `backend/contracts/departure.py` (`DepartureFacts`, `TurnedAway`, `DepartureSnapshot`). `record_departure(book, facts, flagged=False)`: snapshot first, then mark who is assumed boarded — only people already waiting; all of them without a door counter, the `boarded` longest-waiting with one. A repeated departure message changes nothing. Attach rule in `apply_signal`: most recent departure that left **full** at or after `started_waiting_at`; none → stays `WAITING`. Live map (`left_behind_by_departure(book)`) moves a person to the last full bus that left them; each snapshot keeps the set of tokens that tapped against it (only grows; only the count is published). `state_from_book` feeds `StopState`. `prune_departures` forgets departures 30 minutes old. — TC110, TC142, TC143, TC153 (record half), TC154. *Built, reported `03c0846`, pushed. Tick once a later session fetch-confirms.*
+- [ ] **Task 7 — Strange-count flag (rule layer).** Flag when the count is more than 3× `expected` **and** at least a minimum count (both placeholders in `config/thresholds.py`; the minimum stops "expected 1, counted 4" from being flagged). `expected is None` (CP, Jalan Amal, or no model yet) → never flagged by the rule. Keep the count; never drop it. Feeds `flagged` in `StopState` and `flagged_at_departure` in the snapshot. Isolation Forest is Block 11, not here; "believed if the driver or door counter agrees" is the Coordinator's, Block 4. — TC105
 - [ ] **Task 8 — Transfer hand-over.** Move a person from one stop-and-route count to another in one step, never in both. (The app side is Block 12.) — TC109
 
 **Testing Session (GATE):**
@@ -121,7 +121,7 @@ Effect on built code:
 > No numeric pass mark is set on purpose. The threshold is an open question with Huiming (`11`).
 > This first session's goal is the baseline and learning the tooling.
 
-**Status:** In progress. 13 Nov 2026: Tasks 2R + 9, 3R and 4 confirmed on origin (`81b6e75`, `419bff0`); docs syncs `132a9c9`, `61f92ab`, `29e8c41` confirmed, `d81ec64` reported and pushed. **Task 5 built and pushed (`1d67a2e`, reported): 95 tests green** (13 graph + 82 stop-agent, 19 new), including the first Hypothesis state machine (TC150). New pinned dependency: `hypothesis==6.170.15`; `.hypothesis/` gitignored. Known, accepted limit: a tap from someone whose record expired starts a fresh record, so they can only be attached to buses that leave after that tap. Next: Task 6.
+**Status:** In progress. 13 Nov 2026: Tasks 1, 2R + 9, 3R, 4 and 5 confirmed on origin (`1d67a2e`); docs syncs up to `d81ec64` confirmed, `9c6001d` reported and pushed. **Task 6 built and pushed (`03c0846`, reported): 133 tests green** (13 graph + 7 contract + 113 stop-agent). The state machine now includes departures, expiry and pruning, and asserts after every step that a left-behind person is only ever attached to a bus that left full at or after they started waiting (300 examples × 50 steps committed; a one-off 5,000 × 50 run found nothing; removing the bound and removing the "left full" check were both caught). Accepted: a repeated departure message is ignored; a late departure message is handled by its own time; `departed_at == started_waiting_at` counts as already waiting. Open with Samy: whether an "I'm waiting" tap that restores an assumed-boarded person is also recorded as left behind (built: yes). Next: Task 7.
 
 ---
 
@@ -189,6 +189,7 @@ Data foundations. Small, and safe to do before anything else changes.
 - [ ] Stand up Mosquitto for real, re-runnable (carried over from Block 0)
 - [ ] Topics wired per `01` "Message topics", QoS levels correct
 - [ ] Stop state → Coordinator → log, end to end
+- [ ] Departure snapshots are published before `prune_departures` forgets them (the Coordinator and the reports read the published count; tokens never leave the Stop Agent)
 - [ ] Broker disconnect → every bus back on the timetable within 10 s; nothing pending — TC135
 
 **Testing Session:** coverage on the MQTT bridge; disconnect and reconnect simulated in tests.

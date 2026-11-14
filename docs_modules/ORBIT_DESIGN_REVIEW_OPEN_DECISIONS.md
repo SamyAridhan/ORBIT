@@ -24,7 +24,7 @@
 
 ## 1. Build status
 - Block 0 complete and on `main`. Block 1 Tasks 1–3 built and pushed (`47262d8`): demand levels, broadcast decision, interchange gate.
-- **The build resumed on 13 Nov 2026.** Coddy synced the docs, reworked the Stop Agent (Tasks 2R, 3R and 9; `81b6e75`, confirmed) and built Tasks 4 and 5 — the waiting count from app taps, and the signal types with the lost-track rule (`419bff0` confirmed; `1d67a2e` reported and pushed; 95 tests). Next: Block 1 Task 6.
+- **The build resumed on 13 Nov 2026.** Coddy synced the docs, reworked the Stop Agent (Tasks 2R, 3R and 9; `81b6e75`, confirmed) and built Tasks 4, 5 and 6 — the waiting count from app taps, the signal types with the lost-track rule, and what happens to the count when a bus leaves (`1d67a2e` confirmed; `03c0846` reported and pushed; 133 tests). Next: Block 1 Task 7.
 - Effect of the locked design on what's built: Task 1 (levels) stays, as display only. Task 2 (broadcast rules) changes: stops report all the time. Task 3 (interchange gate) changes: app signals at CP / Jalan Amal now count (3.6).
 - `12_BUILD_MILESTONES.md` was replanned on 13 Nov into Blocks 0–13 (core-first). First task on resume: Block 1 Task 2R.
 

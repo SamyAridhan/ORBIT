@@ -231,9 +231,11 @@ The repo already uses this layout under `backend/` (flat imports from `backend/`
 ```
 backend/
 ├── agents/
-│   ├── stop_agent.py           # built (Tasks 1–3), being reworked
+│   ├── stop_agent.py           # built (Block 1 Tasks 1–6)
 │   ├── bus_agent.py            # new
 │   └── coordinator.py          # new
+├── contracts/
+│   └── departure.py            # built — DepartureFacts, TurnedAway, DepartureSnapshot; shared by all three agents
 ├── demand/                     # new — ORBIT's own schedule model (the `expected` number); not the simulator
 ├── simulation/
 │   ├── campus_graph.py         # built (Bus E, N24 path). Real route data — due to move out of simulation/ in Block 2

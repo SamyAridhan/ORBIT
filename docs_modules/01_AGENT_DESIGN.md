@@ -68,7 +68,7 @@ Keep the count of who is waiting at its stop for its route, and publish that sta
 **One phone is one person.** The anonymous token rule (`08_STUDENT_APP_DESIGN.md`):
 - An `initial` signal ("I'm waiting") is accepted once per token, per stop, per route, per 30 minutes. A repeat is ignored silently.
 - `still_waiting` and `transfer` are **updates about a person ORBIT already knows**. They are always accepted, and they never add a second person.
-- **Any tap from a person ORBIT has lost track of puts them back, as one person.** A `still_waiting` from a token whose record has expired (or was never received) creates the record. An `initial` from a token ORBIT had assumed boarded restores it, exactly like a "still waiting". Expiry is bookkeeping, not evidence that nobody is there. Every such tap still has to pass the at-the-stop location check.
+- **Any tap from a person ORBIT has lost track of puts them back, as one person.** A `still_waiting` from a token whose record has expired (or was never received) creates the record. An `initial` from a token ORBIT had assumed boarded restores it, exactly like a "still waiting" — including being recorded as left behind when a full bus left after they started waiting (built this way in Task 6; **Samy's yes/no pending**. The rare wrong case: a student who boarded, came back to the same stop within 30 minutes and taps "I'm waiting"). Expiry is bookkeeping, not evidence that nobody is there. Every such tap still has to pass the at-the-stop location check.
 - One 30-minute setting (placeholder): it is both how long a record lives and the one-signal-per-token window. While the record exists a repeat `initial` changes nothing; after it has expired, a new `initial` is a fresh person.
 - Invariant: one token is never counted more than once at a stop and route.
 
@@ -94,7 +94,7 @@ Accepted limit: if a record has expired, a later tap starts a fresh one, so that
 - A left-behind crowd asks for a spare only **until a later bus of that route has left that stop with room**. After that the crowd could have boarded, so no spare is sent.
 - *Example:* the 7:30 leaves full and leaves Ali. The 7:40 comes with empty seats; Ali misses it. At 7:42 he taps "Still waiting". The record says "left behind by the 7:30" — true, and useful for the timetable report. No spare is sent — a bus with room has just been.
 
-*The next two paragraphs are build details proposed by Chatty for Task 6 (13 Nov 2026). Coddy may change them and report; they are not Samy's rulings.*
+*The next two paragraphs are build details proposed by Chatty and built by Coddy in Task 6 (13 Nov 2026) as written. They are not Samy's rulings.*
 
 **When a bus leaves — who is assumed to have boarded.** Only people who were already waiting when it left. With no door counter, all of them (no answer = boarded). With a door counter, only as many as it saw board — the longest-waiting first; the rest stay in the count. A later tap puts anyone back.
 
@@ -126,7 +126,7 @@ The app handles a change of bus (`08`). The Stop Agent only sees the result: the
 ### Strange counts
 A count that looks implausible is **flagged, kept, and shown** on the dashboard. It does not trigger anything on its own. If a driver or a door counter agrees (the bus really did fill), ORBIT believes it. (R10)
 
-- First layer (rule): flag when the count is more than three times `expected`.
+- First layer (rule): flag when the count is more than three times `expected` **and** at least a minimum count (so "expected 1, counted 4" is not flagged). Both numbers are placeholders. Where there is no `expected` (CP, Jalan Amal, or no model yet), the rule flags nothing.
 - Second layer (AI, built later): an Isolation Forest per stop, route, hour and weekday. It flags; it never deletes and never decides.
 
 ```python
@@ -264,13 +264,13 @@ Every time a bus leaves a stop, these facts exist. Tests on any one agent fake t
 
 | Fact | Owner | Notes |
 |---|---|---|
-| `departure_id` | Bus Agent | Identifies one trip of one bus. Must also work for a spare's extra trip, which has no timetable slot. Format settled in Block 3; treated as an opaque string until then. |
+| `departure_id` | Bus Agent | Built in `backend/contracts/departure.py` (`DepartureFacts`, `TurnedAway`, `DepartureSnapshot`). Identifies one trip of one bus. Must also work for a spare's extra trip, which has no timetable slot. Format settled in Block 3; treated as an opaque string until then. |
 | `bus_id`, `corridor_id`, `stop_id`, `departed_at` | Bus Agent | |
 | `left_full` | Bus Agent | Door counter at the seat count, or the driver tapped "full" |
 | `boarded` | Bus Agent | From the door counter; `None` when the bus has none |
 | `turned_people_away` | Bus Agent | `"yes"` / `"no"` / `"not_sure"` / `None`. `"no"` and unknown (`"not_sure"`, `None`) must stay distinguishable |
 | `waiting_at_departure`, `flagged_at_departure` | Stop Agent | The snapshot taken as the bus leaves |
-| `still_waiting_taps` | Stop Agent | Taps recorded against this departure |
+| `still_waiting_taps` | Stop Agent | Taps recorded against this departure. Kept as the set of tokens inside the Stop Agent, so one person tapping twice counts once; only the count is published |
 
 ### If the broker or the Coordinator is down
 The bus runs its timetable. No instruction is left hanging. (N8)

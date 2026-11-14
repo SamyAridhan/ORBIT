@@ -61,7 +61,7 @@ placeholders, never presented as settled:
 | Manager answer timeout | N minutes | Not set |
 | Left-behind people that justify an extra trip | 1 | Placeholder; a driver's "Yes" always meets it |
 | Signal expiry; token rate window | 30 min | Starting value |
-| Strange-count rule | > 3× `expected` | Starting value |
+| Strange-count rule | > 3× `expected` **and** ≥ 10 people | Starting values; no `expected` → never flagged |
 | All travel times (`02`), spare pool size and waiting spots | — | Estimates / data files |
 
 ## Code expectations
