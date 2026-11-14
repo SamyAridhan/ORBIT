@@ -11,6 +11,8 @@ Task 5  — signal types, the lost-track rule, two times on a record (TC103,
 Task 6  — after the bus leaves: the snapshot, who is assumed boarded, the attach
           rule, the live map vs the history (TC110, TC142, TC143, TC153, TC154),
           over faked DepartureFacts. The state machine now has departures in it.
+Task 7  — the strange-count flag, rule layer: flag, keep, never drop (TC105),
+          with property tests on the rule.
 
 Run from backend/ with flat imports (from agents.stop_agent ...).
 """
@@ -20,7 +22,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from hypothesis import settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 
@@ -37,6 +39,7 @@ from agents.stop_agent import (
     build_stop_state,
     classify_demand,
     expire_signals,
+    is_strange_count,
     new_signal_book,
     produces_expected,
     left_behind_by_departure,
@@ -47,7 +50,7 @@ from agents.stop_agent import (
     waiting_count,
 )
 from contracts.departure import DepartureFacts
-from config.thresholds import SIGNAL_EXPIRY
+from config.thresholds import SIGNAL_EXPIRY, STRANGE_COUNT_MINIMUM, STRANGE_COUNT_MULTIPLIER
 
 # ---------------------------------------------------------------------------
 # Task 1 — demand level (TC102)
@@ -830,6 +833,176 @@ def test_prune_departures_boundary_and_keeps_attachments_and_last_visit():
     assert pruned.records["ali"].left_by_departure == "E1-0730"   # the person keeps the attachment
     assert left_behind_by_departure(pruned) == {"E1-0730": 1}
     assert prune_departures(pruned, at(8, 0)) is pruned
+
+
+# ---------------------------------------------------------------------------
+# Task 7 — the strange-count flag (rule layer): flag, keep, never drop
+# ---------------------------------------------------------------------------
+
+
+def test_tc105_strange_count_is_flagged_kept_and_triggers_nothing():
+    # TC105: 40 signals at KDOJ on a quiet Saturday, expected 5 -> count kept,
+    # flagged = true, shown; nothing triggered (the Stop Agent only reports).
+    book = _book_with("kdoj", "E", [f"t{i}" for i in range(40)], T0)
+    state = state_from_book(book, T0 + MIN, expected=5)
+    assert state.flagged is True
+    assert state.waiting_app == 40                       # kept in full, never dropped
+    assert waiting_count(book) == 40 and len(book.records) == 40
+    assert state.level is DemandLevel.CRITICAL           # the colour is still just the count
+    assert state.left_behind == 0                        # a flag is not a left-behind
+    assert state.to_dict()["flagged"] is True and state.to_dict()["waiting_app"] == 40
+
+
+def test_the_two_numbers_are_the_placeholders_in_config():
+    assert STRANGE_COUNT_MULTIPLIER == 3
+    assert STRANGE_COUNT_MINIMUM == 10
+
+
+@pytest.mark.parametrize(
+    "count, expected, flagged",
+    [
+        (15, 5, False),   # exactly 3x: not "more than"
+        (16, 5, True),    # just over 3x, and at least the minimum
+        (4, 1, False),    # "expected 1, counted 4" — over 3x but below the floor
+        (9, 1, False),    # 9x expected, still below the floor
+        (10, 1, True),    # at the floor: "at least" the minimum
+        (10, 3, True),    # 10 > 9
+        (12, 4, False),   # exactly 3x
+        (13, 4, True),
+        (39, 13, False),  # exactly 3x at a larger number
+        (40, 13, True),
+        (40, 14, False),  # 40 is not more than 42
+        (40, 5, True),    # TC105's numbers
+        (0, 0, False),    # nobody expected, nobody came
+        (9, 0, False),    # nobody expected, a few came: below the floor
+        (10, 0, True),    # nobody expected, ten came
+    ],
+)
+def test_rule_boundaries_more_than_3x_and_at_least_the_minimum(count, expected, flagged):
+    assert is_strange_count(count, expected) is flagged
+
+
+@pytest.mark.parametrize("count", [0, 10, 40, 1000])
+def test_no_expected_means_the_rule_flags_nothing(count):
+    assert is_strange_count(count, None) is False
+
+
+@pytest.mark.parametrize("stop_id", ["cp", "jalan_amal", "CP"])
+def test_cp_and_jalan_amal_are_never_flagged_by_the_rule_even_if_expected_is_supplied(stop_id):
+    # Rule 3 comes first: no `expected` there, so nothing to compare with.
+    assert build_stop_state(stop_id, "E", waiting_app=40, expected=5).flagged is False
+    book = _book_with(stop_id.lower(), "E", [f"t{i}" for i in range(40)], T0)
+    assert state_from_book(book, T0, expected=5).flagged is False
+    # ...while the same numbers at an ordinary stop are flagged.
+    assert build_stop_state("kdoj", "E", waiting_app=40, expected=5).flagged is True
+
+
+@pytest.mark.parametrize("kwargs", [{"count": -1, "expected": 5}, {"count": 5, "expected": -1}])
+def test_negative_inputs_to_the_rule_raise(kwargs):
+    with pytest.raises(ValueError):
+        is_strange_count(**kwargs)
+
+
+def test_custom_placeholders_are_honoured():
+    assert is_strange_count(6, 2, multiplier=2, minimum=5) is True      # 6 > 4 and >= 5
+    assert is_strange_count(6, 2, multiplier=3, minimum=5) is False     # 6 is not > 6
+    assert is_strange_count(6, 2, multiplier=2, minimum=7) is False     # below the floor
+
+
+def test_another_layer_flagging_is_kept_even_when_the_rule_says_no():
+    # `flagged=True` from the caller (Block 11's Isolation Forest) is OR-ed with the rule.
+    state = build_stop_state("kdoj", "E", waiting_app=3, expected=20, flagged=True)
+    assert state.flagged is True and state.waiting_app == 3
+
+
+def test_the_rule_compares_waiting_app_not_the_scaled_estimate():
+    # `expected` is the whole crowd and `waiting_app` only its app users, so this is
+    # conservative until the app share is known — but it is the count ORBIT really has.
+    state = build_stop_state("kdoj", "E", waiting_app=5, estimated_total=50, expected=5)
+    assert state.flagged is False                 # 5 is below the floor
+    assert state.level is DemandLevel.CRITICAL    # the colour does use the estimate
+
+
+def test_flag_at_departure_comes_from_the_count_at_that_moment():
+    # 40 app users waiting when the bus leaves, expected 5 -> the snapshot is flagged
+    # and still records all 40. A flagged count is kept; the Coordinator just won't
+    # use it for the automatic check.
+    book = _book_with("kdoj", "E", [f"t{i}" for i in range(40)], at(7, 20))
+    after = record_departure(book, dep("E1-0730", at(7, 30), True, stop_id="kdoj"), expected=5)
+    snap = after.departures["E1-0730"]
+    assert snap.flagged_at_departure is True
+    assert snap.waiting_at_departure == 40
+
+
+def test_flag_at_departure_ignores_people_who_arrive_afterwards():
+    # 12 were waiting when the bus left (not strange against 5: 12 is not > 15). The
+    # 30 who turn up later don't reach back into that departure's snapshot.
+    book = _book_with("kdoj", "E", [f"e{i}" for i in range(12)], at(7, 20))
+    book = _arrivals(book, [(f"l{i}", at(7, 35)) for i in range(30)])
+    after = record_departure(book, dep("E1-0730", at(7, 30), True, stop_id="kdoj", boarded=0), expected=5)
+    assert after.departures["E1-0730"].waiting_at_departure == 12
+    assert after.departures["E1-0730"].flagged_at_departure is False
+    assert state_from_book(after, at(7, 36), expected=5).flagged is True     # the live count is
+
+
+@pytest.mark.parametrize(
+    "stop_id, expected, passed_flag, snapshot_flag",
+    [
+        ("kdoj", None, False, False),   # no model yet: the rule flags nothing
+        ("kdoj", None, True, True),     # another layer flagged it
+        ("cp", 5, False, False),        # Rule 3: no `expected` at CP
+        ("kdoj", 5, False, True),       # the rule
+    ],
+)
+def test_flag_at_departure_sources(stop_id, expected, passed_flag, snapshot_flag):
+    book = _book_with(stop_id, "E", [f"t{i}" for i in range(40)], at(7, 20))
+    after = record_departure(book, dep("E1-0730", at(7, 30), True, stop_id=stop_id),
+                             passed_flag, expected=expected)
+    assert after.departures["E1-0730"].flagged_at_departure is snapshot_flag
+    assert after.departures["E1-0730"].waiting_at_departure == 40
+
+
+def test_a_flagged_count_changes_nothing_else_in_the_book():
+    # Flag, keep, never drop: same records, same statuses, same history as an
+    # unflagged departure with the same facts.
+    book = _book_with("kdoj", "E", [f"t{i:02d}" for i in range(40)], at(7, 20))
+    facts = dep("E1-0730", at(7, 30), True, stop_id="kdoj", boarded=28)
+    flagged = record_departure(book, facts, expected=5)
+    plain = record_departure(book, facts)
+    assert dict(flagged.records) == dict(plain.records)
+    assert waiting_count(flagged) == waiting_count(plain) == 12
+    still = apply_signal(flagged, "t39", SignalType.STILL_WAITING, at(7, 31))
+    assert still.records["t39"].left_by_departure == "E1-0730"      # taps are still recorded
+
+
+COUNTS = st.integers(min_value=0, max_value=400)
+EXPECTEDS = st.one_of(st.none(), st.integers(min_value=0, max_value=150))
+
+
+@given(count=COUNTS, expected=EXPECTEDS, already=st.booleans())
+def test_property_the_flag_never_changes_the_count(count, expected, already):
+    state = build_stop_state("kdoj", "E", waiting_app=count, expected=expected, flagged=already)
+    assert state.waiting_app == count
+    assert state.to_dict()["waiting_app"] == count
+    assert state.level == classify_demand(count)
+    assert state.flagged is (already or is_strange_count(count, expected))
+
+
+@given(low=COUNTS, extra=st.integers(min_value=0, max_value=400), expected=EXPECTEDS)
+def test_property_raising_the_count_never_unflags_it(low, extra, expected):
+    if is_strange_count(low, expected):
+        assert is_strange_count(low + extra, expected)
+
+
+@given(count=COUNTS, expected=st.integers(min_value=0, max_value=150), less=st.integers(min_value=0, max_value=150))
+def test_property_a_lower_expected_never_unflags_it(count, expected, less):
+    if is_strange_count(count, expected):
+        assert is_strange_count(count, max(0, expected - less))
+
+
+@given(count=st.integers(min_value=0, max_value=STRANGE_COUNT_MINIMUM - 1), expected=EXPECTEDS)
+def test_property_never_flagged_below_the_floor(count, expected):
+    assert is_strange_count(count, expected) is False
 
 
 # ---------------------------------------------------------------------------

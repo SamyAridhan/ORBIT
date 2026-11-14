@@ -25,8 +25,13 @@ Block 1 state of this module:
             waiting), left_behind_by_departure (the live map), state_from_book,
             prune_departures.                          TC110, TC142, TC143, TC153, TC154
 
-Not here yet: the strange-count flag (Task 7) and the move between two books on
-a transfer (Task 8). MQTT publishing is Block 5.
+  Task 7  — the strange-count flag, rule layer: is_strange_count (more than 3x
+            `expected` AND at least a minimum; no `expected` -> never). Applied
+            where the state is built and where a departure is snapshotted. The
+            count is kept, never dropped.                                    TC105
+
+Not here yet: the move between two books on a transfer (Task 8). The second
+flagging layer (Isolation Forest) is Block 11. MQTT publishing is Block 5.
 
 This module never imports from simulation/ — agents must not know the simulator
 exists (AGENTS_BACKEND.md section 4).
@@ -40,7 +45,7 @@ from enum import Enum, IntEnum
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from config.thresholds import SIGNAL_EXPIRY
+from config.thresholds import SIGNAL_EXPIRY, STRANGE_COUNT_MINIMUM, STRANGE_COUNT_MULTIPLIER
 from contracts.departure import DepartureFacts, DepartureSnapshot
 
 
@@ -110,6 +115,50 @@ def produces_expected(stop_id: str) -> bool:
     case-insensitively, so the set stays in one place.
     """
     return stop_id.lower() not in NO_EXPECTED_STOP_IDS
+
+
+# ---------------------------------------------------------------------------
+# Task 7 — the strange-count flag (rule layer): flag, keep, never drop
+# ---------------------------------------------------------------------------
+
+
+def is_strange_count(
+    count: int,
+    expected: int | None,
+    multiplier: int = STRANGE_COUNT_MULTIPLIER,
+    minimum: int = STRANGE_COUNT_MINIMUM,
+) -> bool:
+    """Whether ``count`` looks implausible against ``expected``. Implements Block 1
+    Task 7 (TC105; R10) — the first, rule-based flagging layer.
+
+    Flagged when the count is **more than** ``multiplier`` times ``expected`` **and**
+    **at least** ``minimum`` people. The floor is there because the multiplier alone
+    is noise at small numbers: "expected 1, counted 4" is not strange. Both numbers
+    are placeholders from ``config/thresholds.py``.
+
+    With no ``expected`` (CP, Jalan Amal, or no schedule model yet) the rule flags
+    nothing — there is nothing to compare with.
+
+    This only answers a question. It never changes, caps or drops the count: a
+    flagged count is kept and shown, and whether to believe it is the Coordinator's
+    call (it is believed if a driver or door counter agrees — Block 4).
+
+    Raises:
+        ValueError: on a negative ``count`` or ``expected``.
+    """
+    if count < 0:
+        raise ValueError(f"count must be non-negative, got {count}")
+    if expected is None:
+        return False
+    if expected < 0:
+        raise ValueError(f"expected must be non-negative, got {expected}")
+    return count >= minimum and count > multiplier * expected
+
+
+def _rule_flag(stop_id: str, count: int, expected: int | None) -> bool:
+    """:func:`is_strange_count` for a stop, with Rule 3 applied first: CP and Jalan
+    Amal have no ``expected``, so the rule never flags there."""
+    return is_strange_count(count, expected if produces_expected(stop_id) else None)
 
 
 # ---------------------------------------------------------------------------
@@ -200,10 +249,14 @@ def build_stop_state(
     - Rule 3: for CP and Jalan Amal ``expected`` is forced to ``None`` whatever the
       caller passed — this builder is the one place the Stop Agent produces its state,
       so the rule is enforced here rather than in every caller.
+    - ``flagged`` = the caller's ``flagged`` (another layer already flagged it — the
+      Isolation Forest, Block 11) **or** the rule layer, :func:`is_strange_count` of
+      ``waiting_app`` against ``expected`` after Rule 3 (Task 7, TC105). The count is
+      carried exactly as given, flagged or not.
 
     Raises:
-        ValueError: on a negative ``waiting_app``, ``estimated_total`` or per-departure
-            count. Counts cannot be below zero.
+        ValueError: on a negative ``waiting_app``, ``estimated_total``, ``expected`` or
+            per-departure count. Counts cannot be below zero.
     """
     if waiting_app < 0:
         raise ValueError(f"waiting_app must be non-negative, got {waiting_app}")
@@ -229,7 +282,7 @@ def build_stop_state(
         estimated_total=estimated_total,
         app_share=app_share,
         level=classify_demand(best_count),
-        flagged=flagged,
+        flagged=flagged or _rule_flag(stop_id, waiting_app, expected),
         last_bus_visit_time=last_bus_visit_time,
     )
 
@@ -446,7 +499,11 @@ def add_initial_signal(
 
 
 def record_departure(
-    book: SignalBook, facts: DepartureFacts, flagged: bool = False
+    book: SignalBook,
+    facts: DepartureFacts,
+    flagged: bool = False,
+    *,
+    expected: int | None = None,
 ) -> SignalBook:
     """A bus of this route has left this stop. Implements Block 1 Task 6 (TC110).
 
@@ -454,8 +511,11 @@ def record_departure(
 
     1. **Snapshot.** ``waiting_at_departure`` = everyone who hadn't boarded and was
        already waiting when the bus left (``started_waiting_at <= departed_at``),
-       counted *before* anyone is marked. ``flagged_at_departure`` = ``flagged``
-       (``False`` until Task 7 feeds it). The tap history starts empty.
+       counted *before* anyone is marked. ``flagged_at_departure`` = the caller's
+       ``flagged`` (another layer) **or** the rule layer applied to that same count
+       against ``expected`` (:func:`is_strange_count`, after Rule 3). A flagged
+       count is still recorded in full — the Coordinator just won't use it for the
+       automatic check (N4). The tap history starts empty.
     2. **Who is assumed to have boarded** — only among those same people; someone
        who starts waiting after the bus has gone is untouched.
        - ``facts.boarded is None`` (no door counter): all of them. No answer = boarded.
@@ -498,7 +558,9 @@ def record_departure(
 
     departures = dict(book.departures)
     departures[facts.departure_id] = DepartureSnapshot(
-        facts=facts, waiting_at_departure=len(present), flagged_at_departure=flagged
+        facts=facts,
+        waiting_at_departure=len(present),
+        flagged_at_departure=flagged or _rule_flag(book.stop_id, len(present), expected),
     )
 
     last = book.last_departure_at
