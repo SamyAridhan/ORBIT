@@ -71,7 +71,10 @@ placeholders, never presented as settled:
 - Small, single-responsibility functions — easy to property-test
 - Tests alongside every task (pytest, in `backend/tests/`). Run from `backend/` with flat imports
   (`from agents.stop_agent …`, `from simulation.campus_graph …`; no `__init__.py`).
-- Testing Session (coverage, Hypothesis, mutation run, flaky check) at the END of each block
+- Testing Session (coverage, Hypothesis, mutation run, flaky check) at the END of each block.
+  Dev venv: `pip install -r requirements-dev.txt` (runtime deps stay in `requirements.txt`).
+  Mutation tool: cosmic-ray (`backend/cosmic-ray.toml`; MutPy does not run on 3.11). Always run an
+  unmutated control first, so "everything survived" cannot hide "nothing ran".
 - Don't modify `src/` or `dashboard/` unless explicitly told to
 - Check `docs_modules/12_BUILD_MILESTONES.md` for current progress before starting work
 - Don't tick milestone boxes yourself — report completion for review. A box is ticked only

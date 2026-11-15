@@ -104,7 +104,10 @@ backend/
 │                               # scenarios.json, thresholds (placeholders, marked as such)
 ├── tests/                      # pytest; test_<module>.py
 ├── venv/                       # gitignored
-└── requirements.txt            # pinned; add a dependency only when a task calls for it, and say so
+├── requirements.txt            # runtime only, pinned; add a dependency only when a task calls for it, and say so
+├── requirements-dev.txt        # -r requirements.txt + test/quality tools (pytest, Hypothesis, coverage,
+│                               # pytest-randomly, cosmic-ray). Dev venvs install this one.
+└── cosmic-ray.toml             # mutation-testing config for the Testing Sessions (how to run: inside)
 ```
 
 **`agents/` never imports from `simulation/`.** The simulator feeds the system through the same
@@ -128,5 +131,6 @@ interfaces real sources would use; agent code must not know the simulator exists
   submitted thesis unless a task says so.
 - Every commit message says what task it is. Every report says the branch and "pushed: yes/no".
 
-Local run (once the pieces exist): `mosquitto -v` · `cd backend && uvicorn api.main:app --reload --port 8000`
-· `cd backend && python -m pytest`.
+Local run (once the pieces exist): `cd backend && python -m venv venv && venv/bin/pip install -r requirements-dev.txt`
+· `mosquitto -v` · `cd backend && uvicorn api.main:app --reload --port 8000` · `cd backend && python -m pytest`
+(pytest-randomly shuffles the order on every run; `-p no:randomly` turns it off).

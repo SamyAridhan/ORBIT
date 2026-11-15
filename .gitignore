@@ -23,3 +23,4 @@ __pycache__/
 # Specific path only — the other three assets/ videos stay tracked.
 # (The 2.6 MB blob already in history at b3d547b is intentionally left as-is.)
 assets/otherPerson_ani.mp4
+.coverage

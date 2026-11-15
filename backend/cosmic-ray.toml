@@ -1,0 +1,22 @@
+# Mutation testing for the Block 1 Testing Session (module 11; module 12 Block 1).
+# Scope: the Stop Agent and the departure contract. campus_graph.py is left out
+# (Block 0 data, rewritten in Block 2).
+#
+# Run from backend/ with the dev venv active, ideally in a scratch copy of the tree
+# (cosmic-ray edits the source in place and restores it after each mutant):
+#   cosmic-ray init cosmic-ray.toml session.sqlite
+#   cosmic-ray baseline cosmic-ray.toml        # the unmutated control: must pass
+#   cosmic-ray exec cosmic-ray.toml session.sqlite
+#   cr-report session.sqlite
+#
+# Tests run in a fixed order (-p no:randomly) with a fixed Hypothesis seed, so a
+# mutant's verdict is reproducible. -x stops at the first failure: a killed mutant
+# only needs one.
+[cosmic-ray]
+module-path = ["agents/stop_agent.py", "contracts/departure.py"]
+timeout = 120.0
+excluded-modules = []
+test-command = "python -m pytest -x -q -p no:cacheprovider -p no:randomly --hypothesis-seed=0 tests/test_stop_agent.py tests/test_departure_contract.py"
+
+[cosmic-ray.distributor]
+name = "local"

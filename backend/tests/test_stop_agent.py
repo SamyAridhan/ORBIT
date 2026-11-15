@@ -95,6 +95,19 @@ def test_negative_queue_count_raises():
         classify_demand(-1)
 
 
+@given(count=st.integers(min_value=0, max_value=1000), more=st.integers(min_value=0, max_value=1000))
+def test_property_the_level_never_goes_down_when_the_count_goes_up(count, more):
+    # Block 1 Testing Session, first property: classification is monotonic in the
+    # count. The ordered IntEnum (Task 1) is what makes this a plain comparison.
+    assert classify_demand(count) <= classify_demand(count + more)
+
+
+@given(count=st.integers(min_value=0, max_value=1000))
+def test_property_one_more_person_moves_the_level_up_by_at_most_one(count):
+    # A companion: no count jumps a band, so the four colours are contiguous.
+    assert classify_demand(count + 1) - classify_demand(count) in (0, 1)
+
+
 # ---------------------------------------------------------------------------
 # Task 3R — CP and Jalan Amal: no `expected`, nothing else special (TC108)
 # ---------------------------------------------------------------------------
