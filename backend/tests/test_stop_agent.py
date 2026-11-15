@@ -1395,8 +1395,10 @@ def test_property_band_steps_are_contiguous_with_the_boundaries_pinned(count):
 
 
 def test_negative_waiting_app_raises_even_when_an_estimate_is_given():
-    # Kills `waiting_app < 0 -> < -1`: with an estimate, the level comes from the
-    # estimate, so classify_demand no longer catches a negative waiting_app.
+    # Pins that a negative waiting_app raises when an estimate is given (the level
+    # then comes from the estimate, so classify_demand doesn't see it). Written for
+    # `waiting_app < 0 -> < -1`, which turned out to be equivalent: is_strange_count
+    # also rejects a negative count. Kept for the behaviour it pins.
     with pytest.raises(ValueError):
         build_stop_state("kdoj", "E", waiting_app=-1, estimated_total=5)
 
@@ -1465,10 +1467,13 @@ def test_departure_rejection_compares_ids_by_value_in_both_directions():
         record_departure(new_signal_book("kdse", "E"), dep("E1-0730", at(7, 30), True, stop_id="cp"))
     with pytest.raises(ValueError):                                  # "E" sorts after "B"
         record_departure(new_signal_book("kdse", "B"), dep("E1-0730", at(7, 30), True))
-    stop_id, corridor_id = "".join(["kd", "se"]), "".join(["E"])
+    # Equal ids built at run time are different objects. (One-character strings such
+    # as "E" are shared objects in CPython, so the route id here has two characters.)
+    stop_id, corridor_id = "".join(["kd", "se"]), "".join(["E", "2"])
     book = new_signal_book(stop_id, corridor_id)
-    facts = dep("E1-0730", at(7, 30), True)                           # literal "kdse" / "E"
+    facts = dep("E1-0730", at(7, 30), True, corridor_id="E2")         # literals "kdse" / "E2"
     assert facts.stop_id == book.stop_id and facts.stop_id is not book.stop_id
+    assert facts.corridor_id == book.corridor_id and facts.corridor_id is not book.corridor_id
     assert record_departure(book, facts).departures["E1-0730"].facts is facts
 
 
