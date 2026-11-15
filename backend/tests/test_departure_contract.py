@@ -65,3 +65,10 @@ def test_snapshot_to_dict_carries_the_contract_and_no_tokens():
         "turned_people_away": "not_sure",
         "waiting_at_departure": 10, "flagged_at_departure": True, "still_waiting_taps": 2,
     }
+
+
+def test_snapshot_is_frozen():
+    # Testing Session: kills `@dataclass(frozen=True) -> frozen=False` on DepartureSnapshot.
+    snap = DepartureSnapshot(facts=_facts(), waiting_at_departure=1)
+    with pytest.raises(FrozenInstanceError):
+        snap.waiting_at_departure = 2  # type: ignore[misc]

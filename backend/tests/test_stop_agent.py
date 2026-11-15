@@ -25,7 +25,7 @@ from types import MappingProxyType
 
 import pytest
 
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 
@@ -1376,3 +1376,118 @@ class OnePersonOneBook(RuleBasedStateMachine):
 
 TestOnePersonOneBook = OnePersonOneBook.TestCase
 TestOnePersonOneBook.settings = settings(max_examples=200, stateful_step_count=50, deadline=None)
+
+
+# ---------------------------------------------------------------------------
+# Block 1 Testing Session — tests added to kill cosmic-ray survivors.
+# Each names the line and mutant it was written for (session of 15 Nov 2026).
+# ---------------------------------------------------------------------------
+
+
+@example(count=4)
+@example(count=15)
+@example(count=30)
+@given(count=st.integers(min_value=0, max_value=1000))
+def test_property_band_steps_are_contiguous_with_the_boundaries_pinned(count):
+    # Kills `CRITICAL = 3 -> 4`: the sampled companion property never hit 30 -> 31.
+    assert classify_demand(count + 1) - classify_demand(count) in (0, 1)
+    assert [int(level) for level in DemandLevel] == [0, 1, 2, 3]
+
+
+def test_negative_waiting_app_raises_even_when_an_estimate_is_given():
+    # Kills `waiting_app < 0 -> < -1`: with an estimate, the level comes from the
+    # estimate, so classify_demand no longer catches a negative waiting_app.
+    with pytest.raises(ValueError):
+        build_stop_state("kdoj", "E", waiting_app=-1, estimated_total=5)
+
+
+def test_zero_is_an_allowed_estimate_and_an_allowed_per_departure_count():
+    # Kills `estimated_total < 0 -> == 0 / <= 0 / < 1` and `count < 0 -> <= 0 / < 1`.
+    state = build_stop_state("kdoj", "E", waiting_app=0, estimated_total=0, app_share=0.2,
+                             left_behind_by_departure={"E1-0730": 0})
+    assert state.estimated_total == 0 and state.level is DemandLevel.LOW
+    assert state.left_behind == 0 and dict(state.left_behind_by_departure) == {"E1-0730": 0}
+
+
+def test_signal_record_is_frozen():
+    # Kills `@dataclass(frozen=True) -> frozen=False` on SignalRecord.
+    rec = add_initial_signal(new_signal_book("kdoj", "E"), "a", T0).records["a"]
+    with pytest.raises(FrozenInstanceError):
+        rec.status = SignalStatus.ASSUMED_BOARDED  # type: ignore[misc]
+
+
+def test_a_bus_with_room_recorded_first_does_not_stop_the_search():
+    # Kills `continue -> break` in the attach rule: a non-qualifying departure
+    # recorded before the qualifying one must be skipped, not end the scan.
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 15))
+    book = record_departure(book, dep("E1-0720", at(7, 20), full=False, boarded=0))
+    book = record_departure(book, dep("E3-0730", at(7, 30), full=True, boarded=0))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 31))
+    assert book.records["ali"].left_by_departure == "E3-0730"
+
+
+def test_equal_times_the_later_recorded_departure_wins():
+    # Kills `>= -> >` in the attach rule (the documented tie-break).
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 15))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True, boarded=0))
+    book = record_departure(book, dep("E5-0730", at(7, 30), full=True, boarded=0))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 31))
+    assert book.records["ali"].left_by_departure == "E5-0730"
+
+
+def test_an_older_departure_message_arriving_late_does_not_displace_the_newer_bus():
+    # Kills `>= -> != / is not` in the attach rule, and covers the one partial
+    # branch coverage found (413->409): the 7:30 message arrives after the 7:40's.
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 15))
+    book = record_departure(book, dep("E3-0740", at(7, 40), full=True, boarded=0))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True, boarded=0))
+    book = apply_signal(book, "ali", SignalType.STILL_WAITING, at(7, 41))
+    assert book.records["ali"].left_by_departure == "E3-0740"
+
+
+def test_transfer_from_a_known_waiting_person_does_not_claim_a_left_behind():
+    # Kills `is STILL_WAITING -> >= STILL_WAITING` on the refresh path ("transfer"
+    # sorts after "still_waiting"). The door counter keeps Ali WAITING after the full
+    # bus, so the tap reaches the refresh branch, not the restore branch.
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), full=True, boarded=0))
+    assert book.records["ali"].status is W
+    book = apply_signal(book, "ali", SignalType.TRANSFER, at(7, 33))
+    assert book.records["ali"].status is W and book.records["ali"].left_by_departure is None
+    assert book.departures["E1-0730"].still_waiting_taps == 0
+
+
+def test_departure_rejection_compares_ids_by_value_in_both_directions():
+    # Kills the four mutants of `facts.stop_id != book.stop_id or facts.corridor_id
+    # != book.corridor_id`: `>` and `<` (ids that sort the other way) and `is not`
+    # (ids parsed from a message are equal strings but not the same object).
+    with pytest.raises(ValueError):                                  # "cp" sorts before "kdse"
+        record_departure(new_signal_book("kdse", "E"), dep("E1-0730", at(7, 30), True, stop_id="cp"))
+    with pytest.raises(ValueError):                                  # "E" sorts after "B"
+        record_departure(new_signal_book("kdse", "B"), dep("E1-0730", at(7, 30), True))
+    stop_id, corridor_id = "".join(["kd", "se"]), "".join(["E"])
+    book = new_signal_book(stop_id, corridor_id)
+    facts = dep("E1-0730", at(7, 30), True)                           # literal "kdse" / "E"
+    assert facts.stop_id == book.stop_id and facts.stop_id is not book.stop_id
+    assert record_departure(book, facts).departures["E1-0730"].facts is facts
+
+
+def test_prune_forgets_departures_well_past_the_window():
+    # Kills `< keep -> != keep`: a departure 45 minutes old must go, not just one
+    # exactly 30:00 old.
+    book = record_departure(new_signal_book("kdse", "E"), dep("E1-0730", at(7, 30), True))
+    assert dict(prune_departures(book, at(8, 15)).departures) == {}
+
+
+def test_state_from_book_options_are_keyword_only():
+    # Kills `*, -> /,`: expected and estimated_total are both ints; keyword-only stops
+    # a caller from passing one in the other's place.
+    with pytest.raises(TypeError):
+        state_from_book(new_signal_book("kdoj", "E"), T0, 5)  # type: ignore[misc]
+
+
+def test_a_misfiled_book_is_caught_whichever_way_its_key_sorts():
+    # Kills `key != book_key(book) -> >`: the existing test's key sorted after the book's.
+    with pytest.raises(ValueError):
+        apply_signal_anywhere({("aaa", "E"): new_signal_book("kdoj", "E")}, "kdoj", "E", "a",
+                              SignalType.INITIAL, T0)

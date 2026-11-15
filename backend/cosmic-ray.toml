@@ -8,6 +8,10 @@
 #   cosmic-ray baseline cosmic-ray.toml        # the unmutated control: must pass
 #   cosmic-ray exec cosmic-ray.toml session.sqlite
 #   cr-report session.sqlite
+#   python -I tools/cr_triage.py session.sqlite . --diffs   # survivors, type-hint ones set apart
+#
+# If exec is interrupted, check the source is unmutated (it may be left mid-mutant)
+# before running exec again; exec resumes the pending mutants only.
 #
 # Tests run in a fixed order (-p no:randomly) with a fixed Hypothesis seed, so a
 # mutant's verdict is reproducible. -x stops at the first failure: a killed mutant
