@@ -30,8 +30,12 @@ Block 1 state of this module:
             where the state is built and where a departure is snapshotted. The
             count is kept, never dropped.                                    TC105
 
-Not here yet: the move between two books on a transfer (Task 8). The second
-flagging layer (Isolation Forest) is Block 11. MQTT publishing is Block 5.
+  Task 8  — one person, one book at a time: apply_signal_anywhere over a
+            collection of books (a signal for a different stop or route moves
+            the person), remove_token, books_holding.                 TC109, TC156
+
+The second flagging layer (Isolation Forest) is Block 11. Where the collection of
+books lives at run time, and MQTT publishing, are Blocks 5/6.
 
 This module never imports from simulation/ — agents must not know the simulator
 exists (AGENTS_BACKEND.md section 4).
@@ -315,7 +319,7 @@ class SignalType(str, Enum):
     ``INITIAL`` — "I'm waiting": a new person, or nothing if ORBIT already has them.
     ``STILL_WAITING`` — "the bus passed and I'm still here": an update about a known
     person. ``TRANSFER`` — "I've arrived here by changing bus": likewise an update;
-    the removal from the other book is Task 8. Neither update ever adds a second
+    the move out of the other book is :func:`apply_signal_anywhere`. Neither update ever adds a second
     person.
     """
 
@@ -668,3 +672,93 @@ def state_from_book(
         flagged=flagged,
         last_bus_visit_time=book.last_departure_at,
     )
+
+
+# ---------------------------------------------------------------------------
+# Task 8 — one person, one book at a time
+# ---------------------------------------------------------------------------
+
+#: A book's key in a collection: ``(stop_id, corridor_id)``.
+BookKey = tuple[str, str]
+
+
+def book_key(book: SignalBook) -> BookKey:
+    """The key a book is filed under: ``(stop_id, corridor_id)``."""
+    return (book.stop_id, book.corridor_id)
+
+
+def remove_token(book: SignalBook, token: str) -> SignalBook:
+    """The book without ``token``'s record. Unchanged (same object) if it has none.
+
+    A new way out of a book besides expiry, used when a person moves. The departure
+    snapshots are not touched: a left-behind already recorded against a bus stays in
+    that bus's history. The live map loses the person, which is right — they are no
+    longer at this stop for this route.
+    """
+    if token not in book.records:
+        return book
+    records = dict(book.records)
+    del records[token]
+    return replace(book, records=MappingProxyType(records))
+
+
+def books_holding(books: Mapping[BookKey, SignalBook], token: str) -> list[BookKey]:
+    """Which books hold a record for ``token``. With the Task 8 rule kept, at most one.
+
+    A linear scan over the books. Fine at this size; a ``token -> book`` index is
+    Block 5's choice if it is ever needed.
+    """
+    return [key for key, book in books.items() if token in book.records]
+
+
+def apply_signal_anywhere(
+    books: Mapping[BookKey, SignalBook],
+    stop_id: str,
+    corridor_id: str,
+    token: str,
+    signal_type: SignalType,
+    now: datetime,
+    destination: str | None = None,
+) -> Mapping[BookKey, SignalBook]:
+    """Apply one app signal where every book is visible. Implements Block 1 Task 8.
+
+    The rule (01 "One person, one book at a time"): a token is in at most one
+    stop-and-route book at any moment, and a signal for a different stop or route
+    **moves** the person, in one step:
+
+    - out of every other book that holds the token (:func:`remove_token`; that book's
+      departure history is untouched), then
+    - into the target book through :func:`apply_signal` — where, having no record
+      there, they get one ``WAITING`` record with both times = ``now``. They started
+      waiting *there* now, so no bus that left the new stop earlier can be blamed.
+
+    That covers a change of bus (`transfer` on reaching CP: out of Bus C at K9/10,
+    into Bus E at CP — TC109) and a change of mind (an `initial` for another route at
+    the same stop — TC156). For the same stop and route this is exactly
+    :func:`apply_signal`. A target book not yet in the collection is created.
+
+    If the input already holds the token in more than one book, the result holds it
+    in the target only — the rule is restored, not assumed.
+
+    Pure: returns a new read-only mapping; the input mapping and its books are not
+    changed, and books the signal doesn't touch are passed through as the same objects.
+
+    Raises:
+        ValueError: on an empty token, or a book filed under a key that isn't its own
+            ``(stop_id, corridor_id)``.
+    """
+    if not token:
+        raise ValueError("token must be a non-empty string")
+    target: BookKey = (stop_id, corridor_id)
+
+    result: dict[BookKey, SignalBook] = {}
+    for key, book in books.items():
+        if key != book_key(book):
+            raise ValueError(f"book for {book_key(book)} is filed under {key}")
+        result[key] = book if key == target else remove_token(book, token)
+
+    target_book = result.get(target)
+    if target_book is None:
+        target_book = new_signal_book(stop_id, corridor_id)
+    result[target] = apply_signal(target_book, token, signal_type, now, destination)
+    return MappingProxyType(result)

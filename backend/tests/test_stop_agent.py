@@ -13,12 +13,15 @@ Task 6  — after the bus leaves: the snapshot, who is assumed boarded, the atta
           over faked DepartureFacts. The state machine now has departures in it.
 Task 7  — the strange-count flag, rule layer: flag, keep, never drop (TC105),
           with property tests on the rule.
+Task 8  — one person, one book at a time (TC109, TC156), and a three-book state
+          machine for "nobody is counted at two stops at once".
 
 Run from backend/ with flat imports (from agents.stop_agent ...).
 """
 
 from dataclasses import FrozenInstanceError, replace
 from datetime import datetime, timedelta
+from types import MappingProxyType
 
 import pytest
 
@@ -36,6 +39,9 @@ from agents.stop_agent import (
     StopState,
     add_initial_signal,
     apply_signal,
+    apply_signal_anywhere,
+    book_key,
+    books_holding,
     build_stop_state,
     classify_demand,
     expire_signals,
@@ -45,6 +51,7 @@ from agents.stop_agent import (
     left_behind_by_departure,
     prune_departures,
     record_departure,
+    remove_token,
     state_from_book,
     waiting_app_from_book,
     waiting_count,
@@ -1006,6 +1013,153 @@ def test_property_never_flagged_below_the_floor(count, expected):
 
 
 # ---------------------------------------------------------------------------
+# Task 8 — one person, one book at a time (TC109, TC156)
+# ---------------------------------------------------------------------------
+
+K9C, CPC, CPE = ("kolej_9_10", "C"), ("cp", "C"), ("cp", "E")
+
+
+def _books(*books):
+    return {book_key(b): b for b in books}
+
+
+def test_tc109_change_of_bus_k9_10_to_kdoj_via_cp():
+    # TC109: K9/10 -> KDOJ is Bus C to CP, then Bus E. Counted for Bus C at K9/10;
+    # on reaching CP, counted for Bus E at CP and removed from Bus C; never in both.
+    books = apply_signal_anywhere({}, *K9C, "ali", SignalType.INITIAL, at(7, 0), destination="kdoj")
+    assert books_holding(books, "ali") == [K9C]
+    assert waiting_count(books[K9C]) == 1
+
+    books = dict(books)                                   # Bus C leaves K9/10, no door counter
+    books[K9C] = record_departure(books[K9C], dep("C1-0705", at(7, 5), False, stop_id="kolej_9_10", corridor_id="C"))
+    assert books[K9C].records["ali"].status is B
+
+    after = apply_signal_anywhere(books, *CPE, "ali", SignalType.TRANSFER, at(7, 15), destination="kdoj")
+    assert books_holding(after, "ali") == [CPE]          # one book, in one step
+    rec = after[CPE].records["ali"]
+    assert rec.status is W
+    assert rec.started_waiting_at == at(7, 15) and rec.last_heard_at == at(7, 15)
+    assert rec.destination == "kdoj"
+    assert waiting_count(after[CPE]) == 1 and waiting_count(after[K9C]) == 0
+    assert after[K9C].departures["C1-0705"].waiting_at_departure == 1    # K9/10's history kept
+
+
+def test_tc156_change_of_mind_at_the_same_stop():
+    # TC156: waiting for Bus B at Cluster T02, picks a destination served by Bus E
+    # from the same stop -> out of Bus B's count, one person in Bus E's, never both.
+    books = apply_signal_anywhere({}, "cluster_t02", "B", "sara", SignalType.INITIAL, at(17, 0),
+                                  destination="kolej_perdana")
+    after = apply_signal_anywhere(books, "cluster_t02", "E", "sara", SignalType.INITIAL, at(17, 6),
+                                  destination="kdoj")
+    assert books_holding(after, "sara") == [("cluster_t02", "E")]
+    assert waiting_count(after[("cluster_t02", "B")]) == 0
+    assert waiting_count(after[("cluster_t02", "E")]) == 1
+    assert sum(waiting_count(b) for b in after.values()) == 1
+    assert after[("cluster_t02", "E")].records["sara"].started_waiting_at == at(17, 6)
+
+
+@pytest.mark.parametrize("kind", list(SignalType))
+@pytest.mark.parametrize("status", [None, W, B, L])
+def test_same_stop_and_route_is_exactly_apply_signal(kind, status):
+    book = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    book = record_departure(book, dep("E1-0730", at(7, 30), True, boarded=0))
+    if status is None:
+        book = remove_token(book, "ali")
+    else:
+        book = _with_status(book, "ali", status, left_by_departure="E1-0730" if status is L else None)
+    other = add_initial_signal(new_signal_book("klg", "E"), "x", at(7, 20))
+    after = apply_signal_anywhere(_books(book, other), "kdse", "E", "ali", kind, at(7, 33))
+    assert after[("kdse", "E")] == apply_signal(book, "ali", kind, at(7, 33))
+    assert after[("klg", "E")] is other
+
+
+@pytest.mark.parametrize("kind", list(SignalType))
+def test_a_moved_person_is_not_blamed_for_an_earlier_full_bus_at_the_new_stop(kind):
+    cp_e = add_initial_signal(new_signal_book("cp", "E"), "other", at(7, 5))
+    cp_e = record_departure(cp_e, dep("E1-0710", at(7, 10), True, stop_id="cp", boarded=0))
+    k9_c = add_initial_signal(new_signal_book("kolej_9_10", "C"), "ali", at(7, 0))
+    after = apply_signal_anywhere(_books(cp_e, k9_c), *CPE, "ali", kind, at(7, 15))
+    rec = after[CPE].records["ali"]
+    assert rec.status is W and rec.left_by_departure is None
+    assert rec.started_waiting_at == at(7, 15)
+    assert "ali" not in after[CPE].departures["E1-0710"].still_waiting_tokens
+
+
+def test_moving_out_keeps_the_old_history_and_drops_the_live_attachment():
+    # Ali is left behind at KDSE by the full 7:30, then gives up on Bus E and picks a
+    # trip on another route from KDSE ("D" here is just a second route id).
+    kdse = add_initial_signal(new_signal_book("kdse", "E"), "ali", at(7, 25))
+    kdse = record_departure(kdse, dep("E1-0730", at(7, 30), True))
+    kdse = apply_signal(kdse, "ali", SignalType.STILL_WAITING, at(7, 31))
+    assert left_behind_by_departure(kdse) == {"E1-0730": 1}
+
+    after = apply_signal_anywhere(_books(kdse), "kdse", "D", "ali", SignalType.INITIAL, at(7, 35))
+    old = after[("kdse", "E")]
+    assert "ali" not in old.records
+    assert left_behind_by_departure(old) == {}                    # no longer at this stop for E
+    assert old.departures["E1-0730"] is kdse.departures["E1-0730"]   # history untouched...
+    assert old.departures["E1-0730"].still_waiting_taps == 1        # ...the 7:30 still left one
+    state = state_from_book(old, at(7, 36))
+    assert state.waiting_app == 0 and state.left_behind == 0
+
+
+def test_a_target_book_not_yet_in_the_collection_is_created():
+    after = apply_signal_anywhere({}, "kdoj", "E", "a", SignalType.INITIAL, T0)
+    assert list(after) == [("kdoj", "E")]
+    assert waiting_count(after[("kdoj", "E")]) == 1
+
+
+def test_pure_input_untouched_result_read_only_untouched_books_passed_through():
+    k9_c = add_initial_signal(new_signal_book("kolej_9_10", "C"), "ali", at(7, 0))
+    klg = add_initial_signal(new_signal_book("klg", "E"), "x", at(7, 0))
+    books = _books(k9_c, klg)
+    before = dict(books)
+    after = apply_signal_anywhere(books, *CPE, "ali", SignalType.TRANSFER, at(7, 15))
+    assert books == before and "ali" in books[K9C].records       # the input is unchanged
+    assert after[("klg", "E")] is klg                           # untouched books are the same objects
+    with pytest.raises(TypeError):
+        after[("x", "y")] = klg  # type: ignore[index]
+
+
+def test_a_misfiled_book_or_an_empty_token_raises():
+    with pytest.raises(ValueError):
+        apply_signal_anywhere({("klg", "E"): new_signal_book("kdoj", "E")}, "kdoj", "E", "a",
+                              SignalType.INITIAL, T0)
+    with pytest.raises(ValueError):
+        apply_signal_anywhere({}, "kdoj", "E", "", SignalType.INITIAL, T0)
+
+
+def test_a_token_already_in_two_books_ends_up_in_the_target_only():
+    # The rule is restored, not assumed: even a collection that already breaks it
+    # comes out with the token in one book.
+    a = add_initial_signal(new_signal_book("kdoj", "E"), "ali", T0)
+    b = add_initial_signal(new_signal_book("klg", "E"), "ali", T0)
+    after = apply_signal_anywhere(_books(a, b), "klg", "E", "ali", SignalType.STILL_WAITING, T0 + MIN)
+    assert books_holding(after, "ali") == [("klg", "E")]
+    assert after[("klg", "E")].records["ali"].started_waiting_at == T0   # the target's record is kept
+
+
+def test_a_later_signal_for_the_old_stop_moves_them_back_still_one_book():
+    # The rule as written: whichever stop and route the latest signal is for, that is
+    # the one book. (Open question in the Task 8 report: a stale, out-of-order signal
+    # would do this too.)
+    books = apply_signal_anywhere({}, *K9C, "ali", SignalType.INITIAL, at(7, 0))
+    books = apply_signal_anywhere(books, *CPE, "ali", SignalType.TRANSFER, at(7, 15))
+    back = apply_signal_anywhere(books, *K9C, "ali", SignalType.STILL_WAITING, at(7, 16))
+    assert books_holding(back, "ali") == [K9C]
+    assert back[K9C].records["ali"].started_waiting_at == at(7, 16)
+
+
+def test_remove_token_and_books_holding_basics():
+    book = _book_with("kdoj", "E", ["a", "b"], T0)
+    assert remove_token(book, "zz") is book
+    removed = remove_token(book, "a")
+    assert set(removed.records) == {"b"} and set(book.records) == {"a", "b"}
+    assert books_holding({}, "a") == []
+    assert book_key(book) == ("kdoj", "E")
+
+
+# ---------------------------------------------------------------------------
 # TC150 — one token is never counted more than once at a stop and route.
 # Hypothesis state machine over any mix of taps, departures, expiry and pruning.
 # Also answers: can a person end up LEFT_BEHIND by a bus that left before they
@@ -1108,3 +1262,104 @@ class OneTokenOnePerson(RuleBasedStateMachine):
 
 TestTC150OneTokenOnePerson = OneTokenOnePerson.TestCase
 TestTC150OneTokenOnePerson.settings = settings(max_examples=300, stateful_step_count=50, deadline=None)
+
+
+# ---------------------------------------------------------------------------
+# TC150 across books, and the second Block 1 property: "one person is never
+# counted at two stops at once". Three books, any mix of taps, departures,
+# expiry and pruning.
+# ---------------------------------------------------------------------------
+
+TOKEN_IDS = ["t1", "t2", "t3", "t4", "t5"]
+BOOK_KEYS = st.sampled_from([K9C, CPC, CPE])
+
+
+class OnePersonOneBook(RuleBasedStateMachine):
+    """Model: per token, absent or (book, waiting | boarded, started_waiting_at)."""
+
+    def __init__(self):
+        super().__init__()
+        self.books = MappingProxyType({})
+        self.now = T0
+        self.model: dict[str, list] = {}
+        self.facts: dict[str, tuple] = {}           # departure_id -> (book key, facts)
+        self.history: dict[str, frozenset] = {}
+
+    @rule(token=st.sampled_from(TOKEN_IDS), kind=KINDS, key=BOOK_KEYS)
+    def tap(self, token, kind, key):
+        before = self.model.get(token)
+        self.books = apply_signal_anywhere(self.books, *key, token, kind, self.now)
+        if before is None or before[0] != key:
+            self.model[token] = [key, "waiting", self.now]
+        elif before[1] == "boarded":
+            before[1] = "waiting"
+
+    @rule(key=BOOK_KEYS, full=st.booleans(),
+          boarded=st.one_of(st.none(), st.integers(min_value=0, max_value=6)))
+    def bus_leaves(self, key, full, boarded):
+        departure_id = f"d{len(self.facts)}"
+        facts = DepartureFacts(departure_id=departure_id, bus_id="X1", corridor_id=key[1],
+                               stop_id=key[0], departed_at=self.now, left_full=full, boarded=boarded)
+        self.facts[departure_id] = (key, facts)
+        present = sorted((t for t, (k, v, s) in self.model.items()
+                          if k == key and v == "waiting" and s <= self.now),
+                         key=lambda t: (self.model[t][2], t))
+        for t in (present if boarded is None else present[:boarded]):
+            self.model[t][1] = "boarded"
+        books = dict(self.books)
+        books[key] = record_departure(books.get(key) or new_signal_book(*key), facts)
+        self.books = MappingProxyType(books)
+
+    @rule(minutes=st.integers(min_value=1, max_value=20))
+    def time_passes(self, minutes):
+        self.now += minutes * MIN
+        self.books = MappingProxyType(
+            {k: prune_departures(expire_signals(b, self.now), self.now) for k, b in self.books.items()}
+        )
+        for t in list(self.model):
+            k = self.model[t][0]
+            if t not in self.books[k].records:
+                del self.model[t]
+
+    @invariant()
+    def each_token_is_in_at_most_one_book_and_it_is_the_right_one(self):
+        for t in TOKEN_IDS:
+            holders = books_holding(self.books, t)
+            assert len(holders) <= 1
+            assert holders == ([self.model[t][0]] if t in self.model else [])
+
+    @invariant()
+    def nobody_is_counted_at_two_stops_and_every_count_agrees(self):
+        total = sum(waiting_count(b) for b in self.books.values())
+        assert total == sum(1 for _, v, _ in self.model.values() if v == "waiting")
+        for k, b in self.books.items():
+            assert waiting_count(b) == sum(1 for kk, v, _ in self.model.values() if kk == k and v == "waiting")
+
+    @invariant()
+    def started_waiting_is_when_they_started_at_the_stop_they_are_at(self):
+        for b in self.books.values():
+            for t, r in b.records.items():
+                assert r.started_waiting_at == self.model[t][2]
+                assert r.started_waiting_at <= r.last_heard_at <= self.now
+
+    @invariant()
+    def left_behind_only_by_a_full_bus_at_their_own_stop_after_they_started(self):
+        for k, b in self.books.items():
+            for r in b.records.values():
+                if r.status is SignalStatus.LEFT_BEHIND:
+                    dep_key, facts = self.facts[r.left_by_departure]
+                    assert dep_key == k
+                    assert facts.left_full and facts.departed_at >= r.started_waiting_at
+                else:
+                    assert r.left_by_departure is None
+
+    @invariant()
+    def tap_histories_only_grow(self):
+        for b in self.books.values():
+            for departure_id, snap in b.departures.items():
+                assert self.history.get(departure_id, frozenset()) <= snap.still_waiting_tokens
+                self.history[departure_id] = snap.still_waiting_tokens
+
+
+TestOnePersonOneBook = OnePersonOneBook.TestCase
+TestOnePersonOneBook.settings = settings(max_examples=200, stateful_step_count=50, deadline=None)
