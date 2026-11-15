@@ -76,6 +76,7 @@ A web app cannot check location while it is closed. If the app is closed during 
 - Show places in plain words ("Faculty Cluster", "KDOJ"), with the bus as the answer, not the question.
 - The app returns the trip: one bus, or two with the change point.
 - If more than one bus fits (for example two Bus E paths, or Bus B and Bus E to the Cluster from different sides), show the one that arrives first.
+- **Changing destination moves you.** A student is counted for one bus at one stop at a time. Picking a new destination takes them out of the old count and puts them in the new one — never both.
 
 ### 3. Your bus
 ```

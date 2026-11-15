@@ -13,7 +13,7 @@
 
 - **PSM1 is complete and submitted.** The thesis is not edited.
 - **Now:** industrial training (Sept 2026 – Feb 2027). Development happens on weekends. PSM2 runs March – July 2027.
-- **Build:** Block 0 is on `main` (`8b005cc`). **The build resumed on 13 Nov 2026.** Coddy synced `docs_modules/` and reworked the Stop Agent to the new design: Task 1 kept; Tasks 2R, 3R and 9 built and confirmed (`81b6e75` on `claude/funny-knuth-w6dibj`); Tasks 4, 5 and 6 built — the waiting count from app taps, the signal types with the lost-track rule, and what happens to the count when a bus leaves (`1d67a2e` confirmed; `03c0846` reported, pushed; 133 tests). Next: Block 1 Task 7.
+- **Build:** Block 0 is on `main` (`8b005cc`). **The build resumed on 13 Nov 2026.** Coddy synced `docs_modules/` and reworked the Stop Agent to the new design: Task 1 kept; Tasks 2R, 3R and 9 built and confirmed (`81b6e75` on `claude/funny-knuth-w6dibj`); Tasks 4 to 7 built — the waiting count from app taps, the signal types with the lost-track rule, what happens to the count when a bus leaves, and the strange-count flag (`03c0846` confirmed; `176983d` reported, pushed; 173 tests). Next: Block 1 Task 8, then the first Testing Session.
 - **Design:** locked 11 Nov 2026. Modules updated 13 Nov 2026.
 - **13 Nov 2026, confirmed by Samy:** the small rules filled in while writing the modules (tracker 3.15), and the student adoption plan (below; tracker 3.14). New Project instructions are pasted in.
 - **13 Nov 2026 (afternoon), refined with Samy after Coddy's sync report:** three ways to know people were left behind (the driver is asked, not expected to remember); a late "still waiting" tap always counts; holding needs real GPS (tracker 3.16–3.17).
@@ -172,7 +172,7 @@ Configurable, to tune during development. Never present them as settled, especia
 - The confidence needed before predicting ahead is switched on.
 - All travel times in `02`.
 - Demand level cut-offs (5 / 16 / 31) — display colours only.
-- Strange-count rule: more than 3× the expected number, and at least a minimum count.
+- Strange-count rule: more than 3× the expected number, and at least 10 people.
 - How long ORBIT remembers a tap, and a departure: 30 minutes.
 
 **Retired with the old design** (do not use): 85% capacity lock, 12-minute protected window, 15-minute early-departure gap, 8-minute early-departure cap, 5-minute minimum headway, 0.6 utility score, 30% adoption threshold, 1.5× missed-bus weight.
@@ -213,7 +213,7 @@ The PSM1 use case map (UC1–UC12) was accepted by the panel and is part of the 
 | Student app | Frontend | React 18 + Vite PWA | Prototype built (old flow) |
 | Student app | Stop detection | Browser Geolocation + server-side geofence check | Prototype only |
 | Driver mode | Screen inside the PWA | React | Not built |
-| Backend | Agents | Python 3.11+ (suite has passed on 3.11.18 and 3.12.10; no repo pin) | Stop Agent state, waiting count, signal types and departures built (Tasks 1, 2R, 3R, 9, 4, 5, 6) |
+| Backend | Agents | Python 3.11+ (suite has passed on 3.11.18 and 3.12.10; no repo pin) | Stop Agent state, waiting count, signal types, departures and the strange-count flag built (Tasks 1, 2R, 3R, 9, 4, 5, 6, 7) |
 | Backend | Messaging | Eclipse Mosquitto (MQTT), paho-mqtt 2.1.0 | Dependency only |
 | Backend | Route map | NetworkX 3.6.1 (DiGraph, Dijkstra) | Bus E, one path built |
 | Backend | Strange-count check | scikit-learn Isolation Forest | Not built |
@@ -221,7 +221,7 @@ The PSM1 use case map (UC1–UC12) was accepted by the panel and is part of the 
 | Dashboard | Frontend | React 18 + Vite | Static-replay prototype (old flow) |
 | Bus position | Sources | PAJ GPS → driver device → timetable estimate | Simulated |
 | Database | Persistence | SQLite | Not built |
-| Tests | Tooling | pytest, Hypothesis, MutPy or cosmic-ray | pytest and Hypothesis 6.170.15 in use (133 passing, one state-machine property test covering taps, departures, expiry and pruning) |
+| Tests | Tooling | pytest, Hypothesis, MutPy or cosmic-ray | pytest and Hypothesis 6.170.15 in use (173 passing; a state-machine property test covering taps, departures, expiry and pruning, and four properties on the strange-count flag) |
 
 ---
 

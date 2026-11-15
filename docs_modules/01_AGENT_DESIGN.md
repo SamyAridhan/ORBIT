@@ -68,9 +68,10 @@ Keep the count of who is waiting at its stop for its route, and publish that sta
 **One phone is one person.** The anonymous token rule (`08_STUDENT_APP_DESIGN.md`):
 - An `initial` signal ("I'm waiting") is accepted once per token, per stop, per route, per 30 minutes. A repeat is ignored silently.
 - `still_waiting` and `transfer` are **updates about a person ORBIT already knows**. They are always accepted, and they never add a second person.
-- **Any tap from a person ORBIT has lost track of puts them back, as one person.** A `still_waiting` from a token whose record has expired (or was never received) creates the record. An `initial` from a token ORBIT had assumed boarded restores it, exactly like a "still waiting" — including being recorded as left behind when a full bus left after they started waiting (built this way in Task 6; **Samy's yes/no pending**. The rare wrong case: a student who boarded, came back to the same stop within 30 minutes and taps "I'm waiting"). Expiry is bookkeeping, not evidence that nobody is there. Every such tap still has to pass the at-the-stop location check.
+- **Any tap from a person ORBIT has lost track of puts them back, as one person.** A `still_waiting` from a token whose record has expired (or was never received) creates the record. An `initial` from a token ORBIT had assumed boarded restores it, exactly like a "still waiting" — including being recorded as left behind when a full bus left after they started waiting (Samy: yes, 13 Nov 2026. The accepted rare wrong case: a student who boarded, came back to the same stop within 30 minutes and taps "I'm waiting"). Expiry is bookkeeping, not evidence that nobody is there. Every such tap still has to pass the at-the-stop location check.
 - One 30-minute setting (placeholder): it is both how long a record lives and the one-signal-per-token window. While the record exists a repeat `initial` changes nothing; after it has expired, a new `initial` is a fresh person.
 - Invariant: one token is never counted more than once at a stop and route.
+- **One person, one book at a time** (proposed by Chatty on 15 Nov 2026 as following from "one phone is one person"; Samy's ok pending). A token is in at most one stop-and-route book at any moment. A signal for a different stop or route moves the person: out of the old book, into the new one, in one step. This covers a change of bus (reaching CP) and a change of mind (picking another destination at the same stop). Simplification, accepted for now: a student whose destination is served by two routes from the same stop is counted for the one the trip plan chose.
 
 Built shape (Coddy, Task 4): one record per token in a book per stop and route, with a status (`WAITING` / `ASSUMED_BOARDED` / `LEFT_BEHIND`). The invariant is then a property of the data structure. The record keeps **two times**: `started_waiting_at` (never refreshed — it decides which buses could have left them behind) and `last_heard_at` (refreshed by a "still waiting" or "changed bus" tap — it drives expiry). All taps go through one entry point, `apply_signal`.
 
@@ -126,7 +127,7 @@ The app handles a change of bus (`08`). The Stop Agent only sees the result: the
 ### Strange counts
 A count that looks implausible is **flagged, kept, and shown** on the dashboard. It does not trigger anything on its own. If a driver or a door counter agrees (the bus really did fill), ORBIT believes it. (R10)
 
-- First layer (rule): flag when the count is more than three times `expected` **and** at least a minimum count (so "expected 1, counted 4" is not flagged). Both numbers are placeholders. Where there is no `expected` (CP, Jalan Amal, or no model yet), the rule flags nothing.
+- First layer (rule, built in Task 7): flag when the count is more than three times `expected` **and** at least 10 people (so "expected 1, counted 4" is not flagged). Both numbers are placeholders. Where there is no `expected` (CP, Jalan Amal, or no model yet), the rule flags nothing — a known gap at those two stops, accepted because a count never acts alone. `expected = 0` is a real number: ten people where nobody was expected is flagged. The snapshot's flag uses the count at the moment the bus left.
 - Second layer (AI, built later): an Isolation Forest per stop, route, hour and weekday. It flags; it never deletes and never decides.
 
 ```python
@@ -552,6 +553,7 @@ requirement in module 14. Wording can be sharpened as each block is built.
 | TC153 | The 7:30 leaves full; the 7:40 leaves with room; a student waiting since 7:25 taps "still waiting" at 7:42 | Recorded as left behind by the 7:30; no extra trip, because a bus with room has passed | R5 |
 | TC154 | The 7:30 leaves full; a student who started waiting at 7:35 taps "still waiting" | Not recorded against the 7:30 | R5 |
 | TC155 | Driver answers "No"; 5 students tap "still waiting" after a full departure | Confirmed with 5; the disagreement is logged | R5 |
+| TC156 | A student waiting for Bus B at a stop picks a new destination served by Bus E from the same stop | Moved: out of Bus B's count, one person in Bus E's; never in both | S4 |
 
 ### What happened to TC01–TC17
 
