@@ -26,7 +26,7 @@
 
 - Active branch: **`claude/funny-knuth-w6dibj`** on `origin` (`github.com/SamyAridhan/ORBIT`).
 - `main` is at **`8b005cc`** (Block 0 merged, 3 Oct 2026).
-- The working branch is ahead of `main`; tip reported as **`176983d`** (15 Nov 2026).
+- The working branch is ahead of `main`; tip reported as **`d3ae24d`** (15 Nov 2026).
 - Always `git fetch origin` before trusting a local `git log`. Check out the working branch, not `main`, for Block 1+ commits. `main` gets a merge at each block end.
 
 ---
@@ -46,7 +46,7 @@
 |---|---|
 | 0 — Environment and Bus E route map | Complete (on `main`, `8b005cc`) |
 | ★ Whole-system design review | **Done** (17 Oct – 11 Nov 2026). Design locked; modules updated 13 Nov |
-| 1 — Stop Agent | In progress — Tasks 1, 2R + 9, 3R, 4, 5, 6 confirmed; Task 7 built (reported `176983d`, pushed); next Task 8, then the Testing Session |
+| 1 — Stop Agent | All 8 tasks built — Tasks 1–7 confirmed; Task 8 built (reported `d3ae24d`, pushed). Next: the Block 1 Testing Session |
 | 2 — Route data: both Bus E paths, timetable file, fleet file, ETA rule | Not started |
 | 3 — Bus Agent: state, sources, driver answers | Not started |
 | 4 — Coordinator I: route totals, confirmed overflow, observation mode | Not started — needs Samy's confirmation first |
@@ -106,22 +106,24 @@ Effect on built code:
 - [x] **Task 4 — Waiting count from app signals.** One record per token (`SignalRecord`, status `WAITING` / `ASSUMED_BOARDED` / `LEFT_BEHIND`) in a `SignalBook` per stop and route; `expire_signals`, `waiting_count`, `waiting_app_from_book`; placeholder `SIGNAL_EXPIRY = 30 min` in `backend/config/thresholds.py`. — R1. *`419bff0` — confirmed on origin. Corrected in Task 5: `waiting_count` excludes only `ASSUMED_BOARDED` (a left-behind person is still waiting).*
 - [x] **Task 5 — Signal types and the lost-track rule.** `SignalType` (`initial` / `still_waiting` / `transfer`) through one entry point `apply_signal(...)`. Unknown or expired token, any type → one `WAITING` record. `ASSUMED_BOARDED`, any type → restored as one person, start time kept. Known person + `initial` → nothing changes. Two times on the record: `started_waiting_at` and `last_heard_at`. One constant, `SIGNAL_EXPIRY`. TC150 as a Hypothesis `RuleBasedStateMachine`. — TC103, TC150, TC151, TC152. *`1d67a2e` — confirmed on origin.*
 - [x] **Task 6 — After the bus leaves.** Shared contract `backend/contracts/departure.py` (`DepartureFacts`, `TurnedAway`, `DepartureSnapshot`). `record_departure(book, facts, flagged=False)`: snapshot first, then mark who is assumed boarded — only people already waiting; all of them without a door counter, the `boarded` longest-waiting with one. A repeated departure message changes nothing. Attach rule in `apply_signal`: most recent departure that left **full** at or after `started_waiting_at`; none → stays `WAITING`. Live map (`left_behind_by_departure(book)`) moves a person to the last full bus that left them; each snapshot keeps the set of tokens that tapped against it (only grows; only the count is published). `state_from_book` feeds `StopState`. `prune_departures` forgets departures 30 minutes old. — TC110, TC142, TC143, TC153 (record half), TC154. *`03c0846` — confirmed on origin. An "I'm waiting" tap that restores an assumed-boarded person is also recorded as left behind (Samy: yes).*
-- [ ] **Task 7 — Strange-count flag (rule layer).** `is_strange_count(count, expected)`: more than 3× `expected` **and** at least 10 people (`STRANGE_COUNT_MULTIPLIER`, `STRANGE_COUNT_MINIMUM`, placeholders in `config/thresholds.py`). `expected is None` → never flagged; `expected = 0` is a real number (ten people where nobody was expected is flagged); a negative `expected` raises. Feeds `StopState.flagged` and `flagged_at_departure` (the count at the moment the bus left). The caller's own flag is OR-ed with the rule, leaving room for Block 11. The count is never changed. — TC105. *Built, reported `176983d`, pushed. Tick once a later session fetch-confirms.*
-- [ ] **Task 8 — One person, one book at a time.** A token is in at most one stop-and-route book at any moment. A signal for a different stop or route **moves** the person: removed from the old book, one `WAITING` record in the new one, in one step. This covers a change of bus (`transfer` on reaching CP) and a change of mind (a new destination at the same stop). The old book's departure history is untouched. (The app side is Block 12.) — TC109, TC156
+- [x] **Task 7 — Strange-count flag (rule layer).** `is_strange_count(count, expected)`: more than 3× `expected` **and** at least 10 people (`STRANGE_COUNT_MULTIPLIER`, `STRANGE_COUNT_MINIMUM`, placeholders in `config/thresholds.py`). `expected is None` → never flagged; `expected = 0` is a real number (ten people where nobody was expected is flagged); a negative `expected` raises. Feeds `StopState.flagged` and `flagged_at_departure` (the count at the moment the bus left). The caller's own flag is OR-ed with the rule, leaving room for Block 11. The count is never changed. — TC105. *`176983d` — confirmed on origin.*
+- [ ] **Task 8 — One person, one book at a time.** `apply_signal_anywhere(books, stop_id, corridor_id, token, type, now, destination)` over books keyed by `(stop_id, corridor_id)`: removes the token from every other book, then applies the signal to the target (a moved person gets one fresh `WAITING` record, so no earlier bus at the new stop can be blamed). `remove_token`, `books_holding`, `book_key`. The old book's departure history is untouched. A missing target book is created; a token found in two books ends in the target only; a book filed under the wrong key raises. Linear scan for now (an index is Block 5's call). — TC109, TC156. *Built, reported `d3ae24d`, pushed. Tick once a later session fetch-confirms.*
 
 **Testing Session (GATE):**
 - [ ] Coverage check on the Stop Agent module (a floor, not a target)
 - [ ] First Hypothesis property test — "the level never goes down when the count goes up" (the `IntEnum` was built for this)
-- [ ] Second property — "one person is never counted at two stops at once" (Task 8)
+- [x] Second property — "one person is never counted at two stops at once" — *built early with Task 8 as a three-book `RuleBasedStateMachine` (`d3ae24d`; 200 × 50 committed, a one-off 2,000 × 50 found nothing)*
 - [x] Third property — "one token is never counted more than once at a stop and route", across any mix of `initial`, `still_waiting` and `transfer` signals — *built early with Task 5 as a `RuleBasedStateMachine` (`1d67a2e`); extend it when Task 6 adds departures*
-- [ ] Choose the mutation tool (MutPy or cosmic-ray), note why, confirm it runs here
+- [ ] Choose the mutation tool (MutPy or cosmic-ray), note why, confirm it runs here. **First check whether either runs on Python 3.11 at all** — MutPy has not been maintained for years. If neither runs cleanly, report what does instead of forcing one.
 - [ ] **Mutation run executed and its survivors triaged** — record the kill rate as the first baseline; kill each survivor with a test or accept it with a one-line reason
 - [ ] Flaky-test check (random order, repeated runs) before trusting the mutation score
+- [ ] Compare with the 14 hand-made mutants from Tasks 6–8 (all killed, each against an unmutated control copy). Survivors the tool finds that the hand-made ones missed are the result this session is for
+- [ ] **Merge to `main`** once every box above is ticked (module 13: merge at the end of each block)
 
 > No numeric pass mark is set on purpose. The threshold is an open question with Huiming (`11`).
 > This first session's goal is the baseline and learning the tooling.
 
-**Status:** In progress. 15 Nov 2026: Tasks 1, 2R + 9, 3R, 4, 5 and 6 confirmed on origin (`03c0846`); docs syncs up to `9c6001d` confirmed, `e5c5e7e` reported and pushed. **Task 7 built and pushed (`176983d`, reported): 173 tests green** (13 graph + 7 contract + 153 stop-agent, 40 new). Four Hypothesis properties on the flag; seven hand-made mutants of the Task 7 logic, all killed, against an unmutated control that passed 173 (the first mutant run reported all seven as surviving because the scratch copy was missing a folder and nothing ran — a harness fault, caught and corrected). Known and accepted: CP and Jalan Amal are never flagged by the rule, because they have no `expected`. Next: Task 8, then the Testing Session.
+**Status:** All 8 tasks built (15 Nov 2026). Tasks 1–7 confirmed on origin (`176983d`); docs syncs up to `e5c5e7e` confirmed, `53d3e23` reported and pushed. **Task 8 built and pushed (`d3ae24d`, reported): 198 tests green** (13 graph + 7 contract + 178 stop-agent, 25 new). Five more hand-made mutants, all killed against an unmutated control copy — 14 across Tasks 6–8. Three of the Testing Session's property tests already exist (one token one person; one person one stop; the attach bound). **Open with Samy, not needed until Block 5:** what to do with a delayed or out-of-order signal that would move a person back to a stop they have left (Coddy, 15 Nov). Today the latest signal processed wins, and a test pins that. Next: the Block 1 Testing Session.
 
 ---
 
@@ -189,6 +191,7 @@ Data foundations. Small, and safe to do before anything else changes.
 - [ ] Stand up Mosquitto for real, re-runnable (carried over from Block 0)
 - [ ] Topics wired per `01` "Message topics", QoS levels correct
 - [ ] Stop state → Coordinator → log, end to end
+- [ ] **Delayed signals:** the rule for a signal that arrives late and would move a person back to a stop they have left (ruling from Samy needed before this block; Coddy, 15 Nov)
 - [ ] Departure snapshots are published before `prune_departures` forgets them (the Coordinator and the reports read the published count; tokens never leave the Stop Agent)
 - [ ] Broker disconnect → every bus back on the timetable within 10 s; nothing pending — TC135
 

@@ -24,7 +24,7 @@
 
 ## 1. Build status
 - Block 0 complete and on `main`. Block 1 Tasks 1–3 built and pushed (`47262d8`): demand levels, broadcast decision, interchange gate.
-- **The build resumed on 13 Nov 2026.** Coddy synced the docs, reworked the Stop Agent (Tasks 2R, 3R and 9; `81b6e75`, confirmed) and built Tasks 4 to 7 — the waiting count from app taps, the signal types with the lost-track rule, what happens to the count when a bus leaves, and the strange-count flag (`03c0846` confirmed; `176983d` reported and pushed; 173 tests). Next: Block 1 Task 8, then the first Testing Session.
+- **The build resumed on 13 Nov 2026.** Coddy synced the docs, reworked the Stop Agent (Tasks 2R, 3R and 9; `81b6e75`, confirmed) and built Tasks 4 to 8 — the waiting count, the signal types with the lost-track rule, what happens when a bus leaves, the strange-count flag, and one person at one stop at a time (`176983d` confirmed; `d3ae24d` reported and pushed; 198 tests). All 8 Block 1 tasks are built. Next: the first Testing Session.
 - Effect of the locked design on what's built: Task 1 (levels) stays, as display only. Task 2 (broadcast rules) changes: stops report all the time. Task 3 (interchange gate) changes: app signals at CP / Jalan Amal now count (3.6).
 - `12_BUILD_MILESTONES.md` was replanned on 13 Nov into Blocks 0–13 (core-first). First task on resume: Block 1 Task 2R.
 
@@ -212,6 +212,7 @@ Raised by Coddy's sync report (a late "still waiting" tap would have been droppe
   - *ORBIT has forgotten Ali, and then he taps.* A record lives 30 minutes. A "still waiting" from someone whose record has run out — or an "I'm waiting" tapped again by someone ORBIT assumed had boarded — puts them back, as one person. The tap still passes the at-the-stop check.
   - *Ali taps late, after a bus with room has come.* The 7:30 leaves him; the 7:40 has seats but he misses it; at 7:42 he taps. **Record it against the 7:30** (true, and the report needs it). **Send no spare** (a bus with room has just been). A bus is only blamed for someone already waiting when it left.
   - One 30-minute setting serves as both the record's life and the one-signal-per-phone window (Chatty's call, technical).
+  - **One person, one stop at a time** (Samy, 15 Nov — he forwarded the reply to Coddy that assumed yes). Any tap for a different bus or stop moves the person: a change of bus at CP, or a change of destination at the same stop. Accepted limit: if two buses from the same stop both reach the destination, the student is counted for the one the app picked.
   - An "I'm waiting" tap that restores someone ORBIT assumed had boarded is also recorded as left behind, when a full bus left after they started waiting (Samy: yes, 13 Nov). Accepted rare wrong case: a student who boarded and came back to the same stop within 30 minutes.
 - **Accepted limit:** no door counter + no app users + an unsure driver → ORBIT cannot know; it does nothing and the timetable runs. Samy: there is no other way; in real life this gets adopted gradually, as Uber did.
 - Evidence (precedents file, section 6): Transit app asks riders after a departure has passed; Winnipeg drivers log pass-ups with a button; Vancouver uses pass-up data to add service; Calgary shows a memory-based driver button gets under-used; a Pittsburgh study shows door counters err too, so no single source is trusted alone. The exact one-phone-one-person rule is ORBIT's own — no source publishes how they de-duplicate.
@@ -228,6 +229,7 @@ Raised by Coddy's sync report (a late "still waiting" tap would have been droppe
 
 ## 4. Still open or deferred
 - **For the spare-bus confirmation (before Block 4 / Block 9):** in the pull-forward case, approval and the driver's answer take time while the next bus is minutes from leaving. The Coordinator checks the time before proposing and before the pull-forward — but **what happens when the time has run out is not decided** (raised by Coddy, 13 Nov).
+- **Delayed signals — ruling needed before Block 5** (Coddy, 15 Nov). A tap sent earlier from a stop Ali has left arrives late and moves him back there. Candidate: ignore a signal for a different stop if it is older than the last time ORBIT heard from that phone (server receive time).
 - **Build-time detail:** the format of the departure key (`departure_id`) — must identify one trip of one bus and work for a spare's extra trip.
 - **PSM2 scope and problem statement (Decisions 0, 11) — deferred** to report-writing time. Examiner advised a smaller PSM2 scope. The real problem is now: fixed extra buses that don't follow demand, bunching, and peak overflow (not 2019's "too few buses").
 - **Fleet planning analyst (Decision 12).**

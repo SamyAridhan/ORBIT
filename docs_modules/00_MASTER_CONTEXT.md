@@ -13,7 +13,7 @@
 
 - **PSM1 is complete and submitted.** The thesis is not edited.
 - **Now:** industrial training (Sept 2026 – Feb 2027). Development happens on weekends. PSM2 runs March – July 2027.
-- **Build:** Block 0 is on `main` (`8b005cc`). **The build resumed on 13 Nov 2026.** Coddy synced `docs_modules/` and reworked the Stop Agent to the new design: Task 1 kept; Tasks 2R, 3R and 9 built and confirmed (`81b6e75` on `claude/funny-knuth-w6dibj`); Tasks 4 to 7 built — the waiting count from app taps, the signal types with the lost-track rule, what happens to the count when a bus leaves, and the strange-count flag (`03c0846` confirmed; `176983d` reported, pushed; 173 tests). Next: Block 1 Task 8, then the first Testing Session.
+- **Build:** Block 0 is on `main` (`8b005cc`). **The build resumed on 13 Nov 2026.** Coddy synced `docs_modules/` and reworked the Stop Agent to the new design: Task 1 kept; Tasks 2R, 3R and 9 built and confirmed (`81b6e75` on `claude/funny-knuth-w6dibj`); Tasks 4 to 8 built — the waiting count from app taps, the signal types with the lost-track rule, what happens to the count when a bus leaves, the strange-count flag, and one person at one stop at a time (`176983d` confirmed; `d3ae24d` reported, pushed; 198 tests). **All 8 Block 1 tasks are built.** Next: the first Testing Session.
 - **Design:** locked 11 Nov 2026. Modules updated 13 Nov 2026.
 - **13 Nov 2026, confirmed by Samy:** the small rules filled in while writing the modules (tracker 3.15), and the student adoption plan (below; tracker 3.14). New Project instructions are pasted in.
 - **13 Nov 2026 (afternoon), refined with Samy after Coddy's sync report:** three ways to know people were left behind (the driver is asked, not expected to remember); a late "still waiting" tap always counts; holding needs real GPS (tracker 3.16–3.17).
@@ -90,6 +90,7 @@ A head-to-toe review found the July design assumed things it couldn't know (how 
 - **The smallest crowd worth an extra trip starts at 1** (placeholder).
 - **No holding unless both buses' positions come from GPS.**
 - **The "expected" number is ORBIT's own schedule model**, not the simulator's. Agent code never imports from the simulator.
+- **One person, one stop at a time** (15 Nov). A tap for a different bus or stop moves the person — a change of bus at CP, or a change of destination.
 - **Any tap from a person ORBIT has lost track of puts them back, as one person** (record expired, or "I'm waiting" tapped again).
 - **Record against the last full bus; no spare once a bus with room has passed.** A bus is only blamed for someone already waiting when it left.
 - **Accepted limit:** with no door counter, no app users and an unsure driver, ORBIT cannot know — it does nothing and the timetable runs. Real-life adoption is gradual, the way Uber's and Grab's was; the staged rollout exists for that.
@@ -213,7 +214,7 @@ The PSM1 use case map (UC1–UC12) was accepted by the panel and is part of the 
 | Student app | Frontend | React 18 + Vite PWA | Prototype built (old flow) |
 | Student app | Stop detection | Browser Geolocation + server-side geofence check | Prototype only |
 | Driver mode | Screen inside the PWA | React | Not built |
-| Backend | Agents | Python 3.11+ (suite has passed on 3.11.18 and 3.12.10; no repo pin) | Stop Agent state, waiting count, signal types, departures and the strange-count flag built (Tasks 1, 2R, 3R, 9, 4, 5, 6, 7) |
+| Backend | Agents | Python 3.11+ (suite has passed on 3.11.18 and 3.12.10; no repo pin) | Stop Agent complete: all 8 Block 1 tasks built |
 | Backend | Messaging | Eclipse Mosquitto (MQTT), paho-mqtt 2.1.0 | Dependency only |
 | Backend | Route map | NetworkX 3.6.1 (DiGraph, Dijkstra) | Bus E, one path built |
 | Backend | Strange-count check | scikit-learn Isolation Forest | Not built |
@@ -221,7 +222,7 @@ The PSM1 use case map (UC1–UC12) was accepted by the panel and is part of the 
 | Dashboard | Frontend | React 18 + Vite | Static-replay prototype (old flow) |
 | Bus position | Sources | PAJ GPS → driver device → timetable estimate | Simulated |
 | Database | Persistence | SQLite | Not built |
-| Tests | Tooling | pytest, Hypothesis, MutPy or cosmic-ray | pytest and Hypothesis 6.170.15 in use (173 passing; a state-machine property test covering taps, departures, expiry and pruning, and four properties on the strange-count flag) |
+| Tests | Tooling | pytest, Hypothesis, MutPy or cosmic-ray | pytest and Hypothesis 6.170.15 in use (198 passing; two state-machine property tests — one book, and three books — and four properties on the strange-count flag) |
 
 ---
 
